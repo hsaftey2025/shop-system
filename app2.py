@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from PIL import Image
-from pyzbar.pyzbar import decode
+import zxingcpp
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -57,31 +57,31 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف (بواسطة ميزة الكاميرا الرسمية المستقرة)
+# 4. قسم إضافة الأصناف (باستخدام محرك ZXing المتطور والنقي)
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
 enable_camera = st.checkbox("📷 تشغيل كاميرا الفحص الرسمية الآمنة")
 
 if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>التقط صورة واضحة وقريبة للباركود وسيقوم النظام بقراءتها فوراً:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right;color:gray;'>ضع الباركود بشكل أفقي وقريب أمام الكاميرا، ثم اضغط على زر التقاط الصورة:</p>", unsafe_allow_html=True)
     
-    # استخدام نظام الكاميرا المدمج والآمن في ستريمليت مباشرة لمنع الحجب
-    img_file = st.camera_input("ضع الباركود أمام الكاميرا واضغط لقط")
+    # الكاميرا الرسمية المستقرة من ستريمليت
+    img_file = st.camera_input("التقط صورة الباركود الحالية")
     
     if img_file is not None:
         try:
-            # فتح الصورة ومعالجتها برمجياً على السيرفر
+            # فتح الصورة ومعالجتها بمحرك بايثون النقي والشامل لجميع أنواع الباركودات
             img = Image.open(img_file)
-            decoded_objects = decode(img)
+            results = zxingcpp.read_barcodes(img)
             
-            if decoded_objects:
-                # قراءة أول باركود يتم العثور عليه في الصورة وتحويله لنص صافي
-                st.session_state.scanned_barcode_val = str(decoded_objects[0].data.decode("utf-8")).strip()
-                st.success(f"🎉 تم لقط وقراءة الباركود بنجاح: {st.session_state.scanned_barcode_val}")
+            if results:
+                # التقاط أول رمز يتم العثور عليه في الصورة فوراً
+                st.session_state.scanned_barcode_val = str(results[0].text).strip()
+                st.success(f"🎉 تم قراءة الباركود بنجاح: {st.session_state.scanned_barcode_val}")
             else:
-                st.warning("⚠️ لم يتمكن النظام من العثور على باركود واضح في الصورة الملقوطة. يرجى تقريب الكاميرا وإعادة المحاولة.")
+                st.warning("⚠️ لم يتم رصد باركود واضح في الصورة. يرجى تقريب ملصق المنتج من الكاميرا وإعادة لقط الصورة بوضوح.")
         except Exception as e:
-            st.error(f"حدث خطأ أثناء معالجة الصورة: {e}")
+            st.error(f"حدث خطأ أثناء فك التشفير: {e}")
 
 search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود"])
 selected_product = None
@@ -99,15 +99,14 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    # يعرض الرمز المقروء تلقائياً من الكاميرا، أو يقبل الإدخال اليدوي/بجهاز الليزر الخارجي
-    barcode_input = st.text_input("رمز الباركود الحالي:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز هنا بعد لقط الصورة...")
+    barcode_input = st.text_input("رمز الباركود الحالي:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز هنا بعد التقاط الصورة...")
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
         matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
         if not matched_barcode.empty:
             selected_product = matched_barcode.iloc[0]
-            st.success("✅ تم العثور على الصنف بالباركود في قاعدة البيانات!")
+            st.success("✅ تم العثور على الصنف في قاعدة البيانات!")
         else:
             st.warning(f"⚠️ الباركود ({barcode_input}) غير مسجل في جدول الأصناف!")
 
@@ -138,7 +137,7 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        st.session_state.scanned_barcode_val = "" # تصفير القراءة للقطة القادمة
+        st.session_state.scanned_barcode_val = ""
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
