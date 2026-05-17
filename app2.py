@@ -31,13 +31,13 @@ def init_connection():
         st.error(f"⚠️ ملف الاعتماديات '{filename}' غير موجود في المجلد الرئيسي للبرنامج!")
         st.stop()
         
-    # قراءة الملف وتنظيف المفتاح الخاص من أي تشوهات أو فراغات زائدة تسبب الـ padding
+    # قراءة الملف كـ نص عادي لتفادي حساسية الـ JSON من الرموز المائلة
     with open(filename, "r", encoding="utf-8") as f:
-        creds_dict = json.load(f)
-        
-    if "private_key" in creds_dict:
-        # استبدال أي سطور مائلة مشوهة وتطهير المفتاح تماماً
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip()
+        raw_text = f.read()
+    
+    # حيلة مطورة: إصلاح وعزل الرموز المائلة المزدوجة قبل تحويل النص إلى قاموس برميجي
+    raw_text = raw_text.replace('\\n', '\n')
+    creds_dict = json.loads(raw_text)
         
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
