@@ -204,4 +204,16 @@ if st.session_state.cart:
                     if customer_type == "ذمم / دين":
                         debts_sheet.append_row([
                             current_time.split()[0],
-                            customer
+                            customer_name.strip(),
+                            items_summary,
+                            total_amount,
+                            st.session_state.invoice_num,
+                            "غير مدفوع"
+                        ])
+                        
+                    st.success(f"🎉 ممتاز! تم حفظ وترحيل فاتورة الزبون ({customer_name}) بنجاح!")
+                    st.session_state.cart = []
+                    st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
+                    st.rerun()
+else:
+    st.info("الفاتورة فارغة حالياً. ابحث باسم الصنف أو امسح الباركود لبناء الفاتورة.")
