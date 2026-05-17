@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import streamlit.components.v1 as components
+from PIL import Image
+from pyzbar.pyzbar import decode
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -36,7 +37,7 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة الذاكرة المؤقتة للباركود الممسوح
+# إدارة الذاكرة المؤقتة للباركود
 if 'scanned_barcode_val' not in st.session_state:
     st.session_state.scanned_barcode_val = ""
 
@@ -56,59 +57,31 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف
+# 4. قسم إضافة الأصناف (بواسطة ميزة الكاميرا الرسمية المستقرة)
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-enable_camera = st.checkbox("📷 تشغيل الكاميرا لمسح الباركود مباشرة (فحص فائق الدقة)")
+enable_camera = st.checkbox("📷 تشغيل كاميرا الفحص الرسمية الآمنة")
 
 if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا نحو الباركود بشكل أفقي واقترب ببطء ليتم لقطه تلقائياً:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right;color:gray;'>التقط صورة واضحة وقريبة للباركود وسيقوم النظام بقراءتها فوراً:</p>", unsafe_allow_html=True)
     
-    # كود متطور يجبر المحرك على القراءة المكثفة الشاملة لجميع التنسيقات التجارية
-    scanner_html = """
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:3px solid #00c853;"></div>
-    <script>
-        function onScanSuccess(decodedText, decodedResult) {
-            window.parent.postMessage({type: 'streamlit:setComponentValue', value: String(decodedText)}, '*');
-        }
-        
-        // تفعيل كافة أنواع الباركودات الطولية والمربعة بلا استثناء
-        const formatsToSupport = [
-            Html5QrcodeSupportedFormats.QR_CODE,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.ITF
-        ];
-
-        let html5QrcodeScanner = new Html5QrcodeScanner(
-            "interactive-reader", 
-            { 
-                fps: 30, // زيادة عدد الفريمات لسرعة الالتقاط
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    // جعل صندوق الفحص عريض جداً ومستطيل ليغطي كامل خطوط الباركود التجاري بسهولة
-                    return { width: Math.floor(viewfinderWidth * 0.9), height: Math.floor(viewfinderHeight * 0.6) };
-                },
-                formatsToSupport: formatsToSupport,
-                rememberLastUsedCamera: true,
-                experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: true // استخدام محرك الجهاز الأصلي إذا كان يدعمه لجعل القراءة فورية
-                }
-            }
-        );
-        
-        // بدء الفحص مع تفعيل خاصية القراءة العميقة والمكثفة للملصقات الصعبة
-        html5QrcodeScanner.render(onScanSuccess);
-    </script>
-    """
-    camera_result = components.html(scanner_html, height=380, scrolling=False)
+    # استخدام نظام الكاميرا المدمج والآمن في ستريمليت مباشرة لمنع الحجب
+    img_file = st.camera_input("ضع الباركود أمام الكاميرا واضغط لقط")
     
-    if camera_result and type(camera_result) == str and camera_result.strip() != "":
-        st.session_state.scanned_barcode_val = camera_result.strip()
+    if img_file is not None:
+        try:
+            # فتح الصورة ومعالجتها برمجياً على السيرفر
+            img = Image.open(img_file)
+            decoded_objects = decode(img)
+            
+            if decoded_objects:
+                # قراءة أول باركود يتم العثور عليه في الصورة وتحويله لنص صافي
+                st.session_state.scanned_barcode_val = str(decoded_objects[0].data.decode("utf-8")).strip()
+                st.success(f"🎉 تم لقط وقراءة الباركود بنجاح: {st.session_state.scanned_barcode_val}")
+            else:
+                st.warning("⚠️ لم يتمكن النظام من العثور على باركود واضح في الصورة الملقوطة. يرجى تقريب الكاميرا وإعادة المحاولة.")
+        except Exception as e:
+            st.error(f"حدث خطأ أثناء معالجة الصورة: {e}")
 
 search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود"])
 selected_product = None
@@ -126,14 +99,15 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    barcode_input = st.text_input("أدخل أو امسح الباركود الحالي:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز المقروء هنا تلقائياً...")
+    # يعرض الرمز المقروء تلقائياً من الكاميرا، أو يقبل الإدخال اليدوي/بجهاز الليزر الخارجي
+    barcode_input = st.text_input("رمز الباركود الحالي:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز هنا بعد لقط الصورة...")
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
         matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
         if not matched_barcode.empty:
             selected_product = matched_barcode.iloc[0]
-            st.success("✅ تم العثور على الصنف بالباركود!")
+            st.success("✅ تم العثور على الصنف بالباركود في قاعدة البيانات!")
         else:
             st.warning(f"⚠️ الباركود ({barcode_input}) غير مسجل في جدول الأصناف!")
 
@@ -164,7 +138,7 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        st.session_state.scanned_barcode_val = ""
+        st.session_state.scanned_barcode_val = "" # تصفير القراءة للقطة القادمة
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
@@ -186,4 +160,4 @@ if st.session_state.cart:
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
-    st.info("الفاتورة فارغة حالياً. ابحث باسم الصنف أو امسح الباركود لبناء الفاتورة.")
+    st.info("الفاتورة فارغة حالياً. ابحث باسم الصنف أو التقط صورة للباركود لبناء الفاتورة.")
