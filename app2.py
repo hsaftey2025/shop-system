@@ -19,30 +19,32 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. الاتصال بجوجل شيت مع معالجة حقيقية لملفات PEM وإصلاح الـ Padding تلقائياً
+# 2. الاتصال بجوجل شيت مع معالجة صارمة وحاسمة للمفتاح المشفر لمنع خطأ الـ PEM والـ Padding
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # جلب الإعدادات السحابية وتحويلها لقاموس بايثون قياسي قابل للتعديل
+    # تحويل إعدادات الـ Secrets لقاموس نقي قابل للتعديل في الذاكرة
     creds_dict = dict(st.secrets["gspread_creds"])
     
     if "private_key" in creds_dict:
-        # 1. تنظيف المفتاح من أي علامات اقتباس زائدة أو مسافات خفية في البداية والنهاية
-        key_content = creds_dict["private_key"].strip().strip("'\"")
+        raw_key = creds_dict["private_key"]
         
-        # 2. تحويل الرموز النصية إلى أسطر حقيقية يفهمها نظام PEM
-        key_content = key_content.replace("\\n", "\n")
+        # تنظيف علامات الاقتباس الخارجية وأي مسافات فارغة
+        raw_key = raw_key.strip().strip("'\"")
         
-        # 3. التأكد من أن النص يبدأ وينتهي بالعلامات الرسمية بشكل سليم وبدون مسافات عشوائية
-        if not key_content.startswith("-----BEGIN PRIVATE KEY-----"):
-            key_content = "-----BEGIN PRIVATE KEY-----\n" + key_content
-        if not key_content.endswith("-----END PRIVATE KEY-----"):
-            key_content = key_content + "\n-----END PRIVATE KEY-----"
-            
-        creds_dict["private_key"] = key_content
-    
-    # تمرير البيانات الجاهزة والنظيفة للمكتبة الرسمية
+        # معالجة الرموز المائلة المزدوجة التي تنشأ أحياناً في السيرفرات السحابية وتحويلها لأسطر حقيقية
+        raw_key = raw_key.replace("\\\\n", "\n").replace("\\n", "\n")
+        
+        # إعادة بناء ترويسة وخاتمة ملف الـ PEM المشفر بشكل صارم
+        if "-----BEGIN PRIVATE KEY-----" in raw_key and "-----END PRIVATE KEY-----" in raw_key:
+            core_key = raw_key.split("-----BEGIN PRIVATE KEY-----")[1].split("-----END PRIVATE KEY-----")[0]
+            # إزالة أي مسافات أو أسطر عشوائية داخل جسم المفتاح نفسه
+            lines = [line.strip() for line in core_key.split("\n") if line.strip()]
+            clean_core = "\n".join(lines)
+            final_key = f"-----BEGIN PRIVATE KEY-----\n{clean_core}\n-----END PRIVATE KEY-----\n"
+            creds_dict["private_key"] = final_key
+
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client
