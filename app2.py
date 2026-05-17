@@ -56,25 +56,24 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف (البحث والباركود الشامل)
+# 4. قسم إضافة الأصناف
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-enable_camera = st.checkbox("📷 تشغيل الكاميرا لمسح الباركود مباشرة (يدعم جميع أنواع الباركود والمنتجات)")
+enable_camera = st.checkbox("📷 تشغيل الكاميرا لمسح الباركود مباشرة (فحص فائق الدقة)")
 
 if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا الخلفية بدقة نحو ملصق الباركود (الخطوط أو المربع):</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا نحو الباركود بشكل أفقي واقترب ببطء ليتم لقطه تلقائياً:</p>", unsafe_allow_html=True)
     
-    # كود محسّن ومعدّل برمجياً لتفعيل جميع التنسيقات (Formats) وصلاحية الكاميرا الكاملة
+    # كود متطور يجبر المحرك على القراءة المكثفة الشاملة لجميع التنسيقات التجارية
     scanner_html = """
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid #00c853;"></div>
+    <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:3px solid #00c853;"></div>
     <script>
         function onScanSuccess(decodedText, decodedResult) {
-            // إرسال كود الباركود الصافي فوراً للنظام الرئيسي دون إبطاء
             window.parent.postMessage({type: 'streamlit:setComponentValue', value: String(decodedText)}, '*');
         }
         
-        // إعداد الماسح ليدعم جميع أنواع الباركود بلا استثناء (EAN, Code128, Code39, UPC, QR)
+        // تفعيل كافة أنواع الباركودات الطولية والمربعة بلا استثناء
         const formatsToSupport = [
             Html5QrcodeSupportedFormats.QR_CODE,
             Html5QrcodeSupportedFormats.EAN_13,
@@ -89,20 +88,24 @@ if enable_camera:
         let html5QrcodeScanner = new Html5QrcodeScanner(
             "interactive-reader", 
             { 
-                fps: 24, 
+                fps: 30, // زيادة عدد الفريمات لسرعة الالتقاط
                 qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    // جعل المربع مستطيل ومناسب لقراءة الخطوط الطولية في المنتجات العادية والجوالات
-                    return { width: Math.floor(viewfinderWidth * 0.8), height: Math.floor(viewfinderHeight * 0.5) };
+                    // جعل صندوق الفحص عريض جداً ومستطيل ليغطي كامل خطوط الباركود التجاري بسهولة
+                    return { width: Math.floor(viewfinderWidth * 0.9), height: Math.floor(viewfinderHeight * 0.6) };
                 },
                 formatsToSupport: formatsToSupport,
-                rememberLastUsedCamera: true
+                rememberLastUsedCamera: true,
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true // استخدام محرك الجهاز الأصلي إذا كان يدعمه لجعل القراءة فورية
+                }
             }
         );
+        
+        // بدء الفحص مع تفعيل خاصية القراءة العميقة والمكثفة للملصقات الصعبة
         html5QrcodeScanner.render(onScanSuccess);
     </script>
     """
-    # تفعيل خيار allow="camera" لمنع المتصفح من حجب وظائف الكاميرا وحل مشكلة الـ DeltaGenerator
-    camera_result = components.html(scanner_html, height=360, scrolling=False)
+    camera_result = components.html(scanner_html, height=380, scrolling=False)
     
     if camera_result and type(camera_result) == str and camera_result.strip() != "":
         st.session_state.scanned_barcode_val = camera_result.strip()
@@ -123,7 +126,6 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    # استقبال القراءة المباشرة من الكاميرا أو إدخالها يدوياً/بالليزر الخارجي
     barcode_input = st.text_input("أدخل أو امسح الباركود الحالي:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز المقروء هنا تلقائياً...")
     
     if barcode_input and not df.empty:
@@ -162,14 +164,13 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        # تفريغ الذاكرة فوراً لتهيئة الكاميرا للقطة القادمة لمنتج آخر
         st.session_state.scanned_barcode_val = ""
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
 st.write("---")
 
-# 5. عرض الفاتورة وإدارتها
+# 5. عرض الفاتورة
 st.subheader(f"📋 تفاصيل الفاتورة الحالية رقم #{st.session_state.invoice_num}")
 
 if st.session_state.cart:
