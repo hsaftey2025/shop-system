@@ -4,8 +4,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from datetime import datetime
 import streamlit.components.v1 as components
-import json
-import base64
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -26,22 +24,16 @@ st.markdown("""
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # جلب النص المشفر بـ Base64 من الـ Secrets وفكه برمجياً بأمان تام
-    try:
-        b64_creds = st.secrets["gspread_creds_b64"]
-        decoded_bytes = base64.b64decode(b64_creds)
-        creds_dict = json.loads(decoded_bytes)
+    # جلب الإعدادات وتحويلها إلى قاموس بايثون قياسي
+    creds_dict = dict(st.secrets["gspread_creds"])
+    
+    # معالجة الرموز المائلة للمفتاح الخاص داخل الذاكرة لمنع أخطاء التشفير والـ padding
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
         
-        # التأكد من صحة سطر السطور البرمجية للمفتاح الخاص
-        if "private_key" in creds_dict:
-            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-            
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        return client
-    except Exception as e:
-        st.error(f"فشل فك تشفير الاعتماديات السحابية: {e}")
-        st.stop()
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    client = gspread.authorize(creds)
+    return client
 
 try:
     client = init_connection()
