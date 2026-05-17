@@ -25,10 +25,14 @@ st.markdown("""
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # تعديل جوهري: قراءة الاعتماديات من الـ Secrets المشفرة داخل السيرفر تلقائياً لمنع تلف الـ JWT
+    # قراءة البيانات المخزنة بأمان في Secrets
     creds_dict = json.loads(st.secrets["gspread_creds"])
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     
+    # حيلة برمجية ذكية: معالجة وإصلاح رموز السطر الجديد والـ padding في المفتاح لمنع خطأ التشفير
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     return client
 
