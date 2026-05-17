@@ -163,8 +163,8 @@ if st.session_state.cart:
         else:
             today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             
-            # الرابط السحري الأخير والمطابق 100% لكود معالجة المصفوفات الجديد
-            macro_url = "https://script.google.com/macros/s/AKfycbzQdwiJukriwdsutPn8gcJ97tK5hZIubtxokqBAhKwZShNDARoHTpzoX504h6Ufn2Hd/exec"
+            # 🔴 تم وضع رابط الـ Web App الأخير والجديد كلياً هنا ليعمل فوراً:
+            macro_url = "https://script.google.com/macros/s/AKfycbzcIsRiVsCd2cpVcYtwVFp4NZ06pCkOl5WRBFY7SMqyT4RB4DnAGCy6jCf3nIrhjT4/exec"
             
             # تهيئة هيكل السلة بالمفاتيح الإنجليزية القياسية المضمونة لمنع الجداول الفارغة
             formatted_items = []
@@ -185,7 +185,7 @@ if st.session_state.cart:
             }
             
             try:
-                # إرسال البيانات فوراً لإنشاء وتعبئة ملف الإكسل
+                # إرسال البيانات فوراً لإنشاء وتعبئة ملف الإكسل الشبكي
                 response = requests.post(macro_url, json=invoice_data, timeout=8)
                 st.success(f"🎉 تم إنشاء ملف إكسل للزبون ({customer_name}) وحفظه وتعبئته في Google Drive بنجاح!")
             except Exception as e:
