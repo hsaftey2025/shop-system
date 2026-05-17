@@ -163,25 +163,34 @@ if st.session_state.cart:
         else:
             today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             
-            # الرابط السحري الجديد والنشط الذي أرسلته للرفع المباشر
-            macro_url = "https://script.google.com/macros/s/AKfycbxaJPs6PhmXX_Sk4zIS12WQb3fIi4Clkj8w5LYFEyV9FmpO73KorZ2MK8MtGvr6DkJr/exec"
+            # الرابط السحري الأخير والمطابق 100% لكود معالجة المصفوفات الجديد
+            macro_url = "https://script.google.com/macros/s/AKfycbzQdwiJukriwdsutPn8gcJ97tK5hZIubtxokqBAhKwZShNDARoHTpzoX504h6Ufn2Hd/exec"
+            
+            # تهيئة هيكل السلة بالمفاتيح الإنجليزية القياسية المضمونة لمنع الجداول الفارغة
+            formatted_items = []
+            for item in st.session_state.cart:
+                formatted_items.append({
+                    "name": item["المنتج"],
+                    "price": float(item["السعر"]),
+                    "qty": int(item["الكمية"]),
+                    "total": float(item["الإجمالي"])
+                })
             
             invoice_data = {
                 "customer": customer_name,
                 "type": customer_type,
                 "date": today_str,
                 "total": float(total_amount),
-                "items": st.session_state.cart
+                "items": formatted_items
             }
             
             try:
-                # إرسال البيانات فوراً لإنشاء وتعبئة ملف الإكسل داخل الـ Drive الجديد
+                # إرسال البيانات فوراً لإنشاء وتعبئة ملف الإكسل
                 response = requests.post(macro_url, json=invoice_data, timeout=8)
                 st.success(f"🎉 تم إنشاء ملف إكسل للزبون ({customer_name}) وحفظه وتعبئته في Google Drive بنجاح!")
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء الاتصال بـ Google Drive: {e}")
             
-            # تفريغ السلة وتصفير اسم الزبون تماماً للبدء من جديد فوراً
             st.session_state.cart = []
             st.session_state.barcode_counter += 1
             st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
