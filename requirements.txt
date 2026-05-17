@@ -1,4 +1,2 @@
-zxing-cpp
-pillow
 pandas
 requests
