@@ -8,7 +8,6 @@ import streamlit.components.v1 as components
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
 
-# تنسيق الواجهة لتناسب الجوال وضغط العمل اليومي السريع
 st.markdown("""
     <style>
     .stButton>button { width: 100%; height: 55px; font-size: 18px; font-weight: bold; }
@@ -19,12 +18,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. دالة الاتصال الرسمية التي تقرأ القاموس الآمن من صندوق الـ Secrets مباشرة
+# 2. الحل البديل: دالة ذكية تستقبل السطر النقي وتعيد هيكلته لتفادي خطأ قراءة ملف الـ PEM
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # تحويل بيانات Secrets المكتوبة بصيغة TOML إلى قاموس يفهمه محرك قوقل
+    # جلب السطر المحمي
+    raw_key_line = st.secrets["gspread_creds"]["secure_key_b64"]
+    
+    # بناء الهيكل التشفيري القياسي برمجياً بدون الاعتماد على النسخ اليدوي للرموز المائلة
+    pem_key = "-----BEGIN PRIVATE KEY-----\n"
+    for i in range(0, len(raw_key_line), 64):
+        pem_key += raw_key_line[i:i+64] + "\n"
+    pem_key += "-----END PRIVATE KEY-----\n"
+    
     creds_dict = {
         "type": st.secrets["gspread_creds"]["type"],
         "project_id": st.secrets["gspread_creds"]["project_id"],
@@ -36,7 +43,7 @@ def init_connection():
         "auth_provider_x509_cert_url": st.secrets["gspread_creds"]["auth_provider_x509_cert_url"],
         "client_x509_cert_url": st.secrets["gspread_creds"]["client_x509_cert_url"],
         "universe_domain": st.secrets["gspread_creds"]["universe_domain"],
-        "private_key": st.secrets["gspread_creds"]["private_key"].replace("\\n", "\n")
+        "private_key": pem_key
     }
     
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
@@ -47,7 +54,6 @@ try:
     client = init_connection()
     sheet_url = "https://docs.google.com/spreadsheets/d/11J5eCOYQhDfrJ6rqv0Z35M4gs6_wM7dBWJjCmehkntc/edit?usp=sharing"
     spreadsheet = client.open_by_url(sheet_url)
-    
     products_sheet = spreadsheet.sheet1
     
     try:
@@ -69,7 +75,7 @@ except Exception as e:
     st.error(f"خطأ في الاتصال بقاعدة البيانات: {e}")
     st.stop()
 
-# 3. إدارة سلة المبيعات المؤقتة ورقم الفاتورة الحالية في النظام
+# 3. إدارة سلة المبيعات
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 
@@ -80,22 +86,19 @@ if 'invoice_num' not in st.session_state:
 st.title("⚡ نظام الفواتير الموحدة السريع")
 st.write("---")
 
-# قسم بيانات الزبون
 st.subheader("👤 بيانات الزبون والفاتورة")
 customer_name = st.text_input("اسم الزبون (إجباري لحفظ الفاتورة):", placeholder="اكتب اسم الزبون هنا لفتح الفاتورة...")
 customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذمم / دين"], horizontal=True)
 
 st.write("---")
 
-# 5. قراءة الباركود أو البحث باسم المنتج المحدث بناءً على الجدول
+# 5. قراءة الباركود أو البحث باسم المنتج
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
-
 enable_camera = st.checkbox("📷 تشغيل الكاميرا لمسح الباركود مباشرة (بث حي)")
 scanned_barcode = ""
 
 if enable_camera:
     st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا الخلفية نحو ملصق الباركود ليتم التقاطه فورا وبشكل حي:</p>", unsafe_allow_html=True)
-    
     scanner_html = """
     <script src="https://unpkg.com/html5-qrcode"></script>
     <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid #ddd;"></div>
@@ -117,7 +120,6 @@ with search_type[0]:
     if search_query and not df.empty:
         name_col = df.columns[0]
         matched_df = df[df[name_col].astype(str).str.contains(search_query, case=False, na=False)]
-        
         if not matched_df.empty:
             product_list = matched_df[name_col].tolist()
             selected_name = st.selectbox("اختر الصنف المطلوب من القائمة:", product_list)
@@ -128,7 +130,6 @@ with search_type[0]:
 with search_type[1]:
     default_barcode_val = str(scanned_barcode) if scanned_barcode else ""
     barcode_input = st.text_input("أدخل أو امسح الباركود الحالي:", value=default_barcode_val, placeholder="اضغط هنا للبدء بالمسح اليدوي أو بالليزر...")
-    
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
         matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
@@ -136,12 +137,11 @@ with search_type[1]:
             selected_product = matched_barcode.iloc[0]
             st.success("✅ تم العثور على الصنف بالباركود!")
         else:
-            st.warning("⚠️ هذا الباركود غير مسجل in جدول الأصناف!")
+            st.warning("⚠️ هذا الباركود غير مسجل في جدول الأصناف!")
 
 if selected_product is not None:
     name_col = df.columns[0]
     p_name = selected_product[name_col]
-    
     default_price = 0.0
     if len(df.columns) > 3:
         try:
@@ -150,7 +150,6 @@ if selected_product is not None:
             default_price = 0.0
 
     st.markdown(f"### الصنف الحالي المختار: **{p_name}**")
-    
     col1, col2 = st.columns(2)
     with col1:
         custom_price = st.number_input("سعر البيع الحالي (شيكل):", min_value=0.0, value=default_price, step=0.5)
@@ -169,18 +168,16 @@ if selected_product is not None:
 
 st.write("---")
 
-# 6. عرض الفاتورة الموحدة الكاملة والترحيل
+# 6. عرض الفاتورة والترحيل
 st.subheader(f"📋 تفاصيل الفاتورة الحالية رقم #{st.session_state.invoice_num}")
 
 if st.session_state.cart:
     cart_df = pd.DataFrame(st.session_state.cart)
     st.dataframe(cart_df[["المنتج", "السعر", "الكمية", "الإجمالي"]], use_container_width=True)
-    
     total_amount = cart_df["الإجمالي"].sum()
     st.markdown(f"### 💰 إجمالي حساب الفاتورة: **{total_amount} شيكل**")
     
     items_summary = " + ".join([f"{item['المنتج']} [العدد: {item['الكمية']}]" for item in st.session_state.cart])
-    
     st.markdown(f"**نص الفاتورة الموحد الجاهز للترحيل لـ Google Sheets:**")
     st.info(items_summary)
     
@@ -194,32 +191,16 @@ if st.session_state.cart:
                 st.session_state.cart = []
                 st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
                 st.rerun()
-                
         with col_save:
             if st.button("💾 حفظ الفاتورة وترحيلها الآن"):
                 with st.spinner("جاري إرسال الفاتورة الموحدة وحفظ الحساب بالسحابة..."):
                     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    sales_sheet.append_row([
-                        st.session_state.invoice_num,
-                        current_time,
-                        customer_name.strip(),
-                        customer_type,
-                        items_summary,
-                        total_amount
-                    ])
+                    sales_sheet.append_row([st.session_state.invoice_num, current_time, customer_name.strip(), customer_type, items_summary, total_amount])
                     
                     if customer_type == "ذمم / دين":
-                        debts_sheet.append_row([
-                            current_time.split()[0],
-                            customer_name.strip(),
-                            items_summary,
-                            total_amount,
-                            st.session_state.invoice_num,
-                            "غير مدفوع"
-                        ])
+                        debts_sheet.append_row([current_time.split()[0], customer_name.strip(), items_summary, total_amount, st.session_state.invoice_num, "غير مدفوع"])
                         
-                    st.success(f"🎉 ممتاز! تم حفظ وترحيل فاتورة الزبون ({customer_name}) بنجاح!")
+                    st.success(f"🎉 ممتاز! تم حفظ وترحيل فاتورة الزبون بنجاح!")
                     st.session_state.cart = []
                     st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
                     st.rerun()
