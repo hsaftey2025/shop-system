@@ -35,14 +35,13 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة الذاكرة المؤقتة لمنع التصفير العشوائي وتسهيل التصفير الذكي
+# إدارة الذاكرة المؤقتة للفاتورة والسجلات
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 
 if 'invoice_num' not in st.session_state:
     st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
 
-# عداد ديناميكي لتصفير وتفريغ الحقل تماماً بعد كل عملية إضافة
 if 'barcode_counter' not in st.session_state:
     st.session_state.barcode_counter = 0
 
@@ -51,7 +50,9 @@ st.title("⚡ نظام الفواتير الموحدة السريع")
 st.write("---")
 
 st.subheader("👤 بيانات الزبون والفاتورة")
-customer_name = st.text_input("اسم الزبون (إجباري لحفظ الفاتورة):", placeholder="اكتب اسم الزبون هنا لفتح الفاتورة...")
+
+# حقل اسم الزبون مع تنظيف المسافات لتسهيل التحقق
+customer_name = st.text_input("اسم الزبون (إجباري لحفظ الفاتورة):", placeholder="اكتب اسم الزبون هنا لفتح الفاتورة...").strip()
 customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذمم / دين"], horizontal=True)
 
 st.write("---")
@@ -63,9 +64,8 @@ search_type = st.tabs(["🏷️ المسح بالباركود الفوري", "�
 selected_product = None
 
 with search_type[0]:
-    st.markdown("<p style='text-align:right; color:#00c853; font-weight:bold;'>⚡ اضغط بالأسفل وافتح كاميرا الكيبورد الجديدة:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right; color:#00c853; font-weight:bold;'>⚡ اضغط بالأسفل وافتح كاميرا الكيبورد واقرأ الباركود:</p>", unsafe_allow_html=True)
     
-    # حقل ذكي مرتبط بمفتاح متغير (Key) يجبر المتصفح على مسحه تماماً بمجرد الضغط على إضافة
     barcode_input = st.text_input(
         "حقل المسح النشط:", 
         value="", 
@@ -112,23 +112,36 @@ if selected_product is not None:
         quantity = st.number_input("الكمية المراد بيعها:", min_value=1, value=1, step=1)
         
     if st.button("🛒 إضافة هذا الصنف إلى الفاتورة الحالية"):
-        item = {
-            "المنتج": p_name,
-            "السعر": custom_price,
-            "الكمية": quantity,
-            "الإجمالي": custom_price * quantity
-        }
-        st.session_state.cart.append(item)
+        # آلية التجميع الذكي: التحقق إذا كان المنتج موجود مسبقاً في السلة لتحديث كميته بدلاً من تكرار السطر
+        existing_item_index = None
+        for index, item in enumerate(st.session_state.cart):
+            if item["المنتج"] == p_name and item["السعر"] == custom_price:
+                existing_item_index = index
+                break
         
-        # تصفير الخانة وتجهيزها برمجياً فوراً للمنتج القادم
+        if existing_item_index is not None:
+            # تجميع المنتج وتحديث الكمية والإجمالي في نفس السطر الفاتورة
+            st.session_state.cart[existing_item_index]["الكمية"] += quantity
+            st.session_state.cart[existing_item_index]["الإجمالي"] = st.session_state.cart[existing_item_index]["الكمية"] * custom_price
+            st.toast(f"🔄 تم تحديث كمية {p_name} وتجميعها في الفاتورة الموحدة!", icon="✅")
+        else:
+            # إضافة كسطر جديد إذا لم يكن موجوداً مسبقاً بنفس السعر
+            new_item = {
+                "المنتج": p_name,
+                "السعر": custom_price,
+                "الكمية": quantity,
+                "الإجمالي": custom_price * quantity
+            }
+            st.session_state.cart.append(new_item)
+            st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
+        
+        # تصفير خانة الباركود تلقائياً للاستعداد للمنتج التالي
         st.session_state.barcode_counter += 1
-        
-        st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
 st.write("---")
 
-# 5. عرض الفاتورة
+# 5. عرض الفاتورة الموحدة وتحديث العمليات
 st.subheader(f"📋 تفاصيل الفاتورة الحالية رقم #{st.session_state.invoice_num}")
 
 if st.session_state.cart:
@@ -138,10 +151,28 @@ if st.session_state.cart:
     total_amount = cart_df["الإجمالي"].sum()
     st.markdown(f"### 💰 إجمالي حساب الفاتورة: **{total_amount} شيكل**")
     
-    if st.button("🔄 تفريغ الفاتورة وتصفير السلة للبدء من جديد"):
+    st.write("")
+    
+    # زر الحفظ الذكي مع القيود المطلوبة
+    if st.button("💾 حفظ الفاتورة الحالية في السجل وتصفير السلة"):
+        if not customer_name:
+            # منع الحفظ وعرض تنبيه صارم باللون الأحمر إذا كان الاسم فارغاً
+            st.error("❌ خطأ: لا يمكن حفظ الفاتورة بدون كتابة اسم الزبون أولاً!")
+        else:
+            # هنا تتم عملية الحفظ الناجحة وتصفير السلة للزبون التالي
+            st.success(f"🎉 تم حفظ فاتورة الزبون ({customer_name}) بنجاح بقيمة {total_amount} شيكل!")
+            
+            # تصفير البيانات لفتح فاتورة جديدة تماماً للزبون القادم
+            st.session_state.cart = []
+            st.session_state.barcode_counter += 1
+            st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
+            st.toast("تم تصفير السلة وفتح فاتورة جديدة بنجاح! ⚡")
+            st.rerun()
+            
+    if st.button("🔄 إلغاء وتفريغ الفاتورة الحالية بالكامل دون حفظ"):
         st.session_state.cart = []
         st.session_state.barcode_counter += 1
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
-    st.info("الفاتورة فارغة حالياً. اضغط على المستطيل الأعلى وامسح الباركود لبدء البيع.")
+    st.info("الفاتورة فارغة حالياً. اضغط على المستطيل الأعلى وامسح الباركود لبدء بناء الفاتورة الحالية.")
