@@ -19,44 +19,45 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. نص المفتاح النشط الجديد موضوع داخل نص خام ثلاثي لضمان عدم تلف التنسيق
-PRIVATE_KEY_RAW = """-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCkyWo7tyIICqaU
-VKfjIr1ssWaNVwfXO7s+PP8GEdHwX308vxkULmMeBy2S3Or91y8HgA5FiiLT2DRD
-VU+BESLNQQCPP25eJyCo2BgoQOSAAXHetvyzqCSc1SyuB2mO4lbYFcr3MPFasf52
-hUVYLJM20tYaobrC3caAhV5Vmln5lc/8eWBJfHpgPC4JLye59DV+6He6cYzhgzq6
-GI9UqduxCAg6CpegaN/fiJFm009B8auzDd8rRd9A6koUucVeuwHKFRT7/U8tc12K
-mLfvlp6NfohWt/hhqhSSwTKRFGEuOUucbA4YmZvygPcd7x0J1r2OO/BVMkMPUtR7
-b7aa8TgJAgMBAAECggEAB4c0FTpOkbN63LfpW5UQtlB8cOSS9SBDc5pxxCM4RhT2
-sbnBOYzM9mg5isYQ7jvQaDVPcZnX8XmlGZZiJXFU96+KiQDK1/5NnakRoXUlezuV
-qikN7l82HPwYKHMqPV7VvNVyCkzwGcab62o3Osn+h7imE11kHNbo5KIzJxIAHkjJ
-DP2lmSrL8lJElE9elzfWuwVOLxjlkGQtjj4kBHAE6dnEfWKNmvmY/a5UXjHXNHKe
-4HBX2CglPMgOAN9P+ATd6ewivqtJXKJkAftxx5Nqf9sFg6YsY8qXdEyqUY3qhrhV
-TUFekmnSAubjjygDrDGh+iV0aXZuDu4lQDQnjU00oQKBgQDQRggdAI9CTbDYfWfo
-7wdtlVnA2cOamLhyXW7YYKrGGqP+pLsFD2+EGCiwvcpOL5yelMk5U5+vM19+vHhr
-2YLvOoc55VHDQE7Am/5ObX4ljRb06hREYveRZzVWy3Y1eZlIoeHsGMsajm3NuCW1
-DrHc0wunn7lm5OkdeE9hpmr55QKBgQDKjFCMv75wPRtq32fqmy1BbQ9hgohEmbOH
-r0k+V7D9JPQrLGSxY2IEzAzDX3vNZv8XdYyeRnay918et7yTNR2SaGOPQ0z55EWQ
-ExMqJdHW8pgGdLQd2jBErP1a+8669NnPikztLRcl1upsFk3d9Y9m0icAdvthb6du
-/NmOHltTVQKBgB7dQfaKTrCUstBiRTPPuFoU9+gMXWBboXnRPsvyB1y0NflWkCB/
-2RbKPb1zYreTdrJJekh0jAV6p3wwkefpo+2vzrpVsXgt333LoDQfJcKK1gwVZEt+
-HxH9KXpjTHFAQ+bvlntWcULOOJdz4qKiOtlurRt6IA+PfLxRR/JApznBAoGAAgr6
-QQEqFY24OhK4xJf+E9vavNwJLc/zDJpK/dL6mQMHZ2wSM+vRsESymEHdSMwSJJVt
-7qa9Sb7O+ctWnpF5k+Fzp51BKIAR54sZtWIeRLG7sMz6iBaMSBUKlSFXC3GuxLYb
-yUC58HMKXzsGiIA6UOTWyDYFjp/ENKCCznpJ+UCgYEAnwqionAzk2fm6ssnBywX
-bnHFLBzBVULG8JroKlTsontK5H9O8+GWwyWqkfZlv7E3EfC/SWLQLTeagw/0YHUO
-W7nLtc6iVH6EO7xbhdLsy+gFZR8SXbjkqwjByW3MeZJHHX5++xvLweJ1u6TnEh8S
-3GIrFs1uWQJu46imDBitzeQ=
------END PRIVATE KEY-----"""
+# 2. وضع المفتاح في سطر واحد مستمر ومغلق تماماً لمنع أي تداخل أو مسافات جانبية تالفة
+KEY_LINE = (
+    "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCkyWo7tyIICqaU"
+    "VKfjIr1ssWaNVwfXO7s+PP8GEdHwX308vxkULmMeBy2S3Or91y8HgA5FiiLT2DRD"
+    "VU+BESLNQQCPP25eJyCo2BgoQOSAAXHetvyzqCSc1SyuB2mO4lbYFcr3MPFasf52"
+    "hUVYLJM20tYaobrC3caAhV5Vmln5lc/8eWBJfHpgPC4JLye59DV+6He6cYzhgzq6"
+    "GI9UqduxCAg6CpegaN/fiJFm009B8auzDd8rRd9A6koUucVeuwHKFRT7/U8tc12K"
+    "mLfvlp6NfohWt/hhqhSSwTKRFGEuOUucbA4YmZvygPcd7x0J1r2OO/BVMkMPUtR7"
+    "b7aa8TgJAgMBAAECggEAB4c0FTpOkbN63LfpW5UQtlB8cOSS9SBDc5pxxCM4RhT2"
+    "sbnBOYzM9mg5isYQ7jvQaDVPcZnX8XmlGZZiJXFU96+KiQDK1/5NnakRoXUlezuV"
+    "qikN7l82HPwYKHMqPV7VvNVyCkzwGcab62o3Osn+h7imE11kHNbo5KIzJxIAHkjJ"
+    "DP2lmSrL8lJElE9elzfWuwVOLxjlkGQtjj4kBHAE6dnEfWKNmvmY/a5UXjHXNHKe"
+    "4HBX2CglPMgOAN9P+ATd6ewivqtJXKJkAftxx5Nqf9sFg6YsY8qXdEyqUY3qhrhV"
+    "TUFekmnSAubjjygDrDGh+iV0aXZuDu4lQDQnjU00oQKBgQDQRggdAI9CTbDYfWfo"
+    "7wdtlVnA2cOamLhyXW7YYKrGGqP+pLsFD2+EGCiwvcpOL5yelMk5U5+vM19+vHhr"
+    "2YLvOoc55VHDQE7Am/5ObX4ljRb06hREYveRZzVWy3Y1eZlIoeHsGMsajm3NuCW1"
+    "DrHc0wunn7lm5OkdeE9hpmr55QKBgQDKjFCMv75wPRtq32fqmy1BbQ9hgohEmbOH"
+    "r0k+V7D9JPQrLGSxY2IEzAzDX3vNZv8XdYyeRnay918et7yTNR2SaGOPQ0z55EWQ"
+    "ExMqJdHW8pgGdLQd2jBErP1a+8669NnPikztLRcl1upsFk3d9Y9m0icAdvthb6du"
+    "/NmOHltTVQKBgB7dQfaKTrCUstBiRTPPuFoU9+gMXWBboXnRPsvyB1y0NflWkCB/"
+    "2RbKPb1zYreTdrJJekh0jAV6p3wwkefpo+2vzrpVsXgt333LoDQfJcKK1gwVZEt+"
+    "HxH9KXpjTHFAQ+bvlntWcULOOJdz4qKiOtlurRt6IA+PfLxRR/JApznBAoGAAgr6"
+    "QQEqFY24OhK4xJf+E9vavNwJLc/zDJpK/dL6mQMHZ2wSM+vRsESymEHdSMwSJJVt"
+    "7qa9Sb7O+ctWnpF5k+Fzp51BKIAR54sZtWIeRLG7sMz6iBaMSBUKlSFXC3GuxLYb"
+    "yUC58HMKXzsGiIA6UOTWyDYFjp/ENKCCznpJ+UCgYEAnwqionAzk2fm6ssnBywX"
+    "bnHFLBzBVULG8JroKlTsontK5H9O8+GWwyWqkfZlv7E3EfC/SWLQLTeagw/0YHUO"
+    "W7nLtc6iVH6EO7xbhdLsy+gFZR8SXbjkqwjByW3MeZJHHX5++xvLweJ1u6TnEh8S"
+    "3GIrFs1uWQJu46imDBitzeQ="
+)
+
+# دالة ذكية لإعادة بناء المفتاح وتجزئته كل 64 حرفاً بشكل قياسي تماماً
+formatted_key = "-----BEGIN PRIVATE KEY-----\n"
+for i in range(0, len(KEY_LINE), 64):
+    formatted_key += KEY_LINE[i:i+64] + "\n"
+formatted_key += "-----END PRIVATE KEY-----\n"
 
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
-    # تنظيف وتجهيز نص المفتاح برمجياً لإزالة أي دبل سلاش أو مشاكل حشو خفية
-    clean_key = PRIVATE_KEY_RAW.strip()
-    # استبدال أي سلاشات مزدوجة نصية قد تظهر أثناء المعالجة بسطر جديد حقيقي
-    clean_key = clean_key.replace("\\n", "\n")
     
     creds_dict = {
         "type": "service_account",
@@ -69,7 +70,7 @@ def init_connection():
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/shop-app-accessor%40shop-management-system-496511.iam.gserviceaccount.com",
         "universe_domain": "googleapis.com",
-        "private_key": clean_key
+        "private_key": formatted_key
     }
     
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
