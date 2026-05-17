@@ -19,15 +19,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. الاتصال بجوجل شيت عبر مكتبة جوجل الرسمية والحديثة المباشرة
+# 2. الاتصال بجوجل شيت مع معالجة حقيقية لملفات PEM والأسطر البرمجية
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # جلب الإعدادات وتحويلها لقاموس نقي ليتم تمريره مباشرة للمكتبة الرسمية
+    # جلب الإعدادات السحابية وتحويلها لقاموس بايثون قياسي قابل للتعديل
     creds_dict = dict(st.secrets["gspread_creds"])
     
-    # الربط الرسمي الذكي بدون أخطاء padding أو تشفير
+    # الحل النهائي والجذري لخطأ Unable to load PEM file / InvalidPadding:
+    # نقوم باستبدال النص المكتوب يدوياً بأسطر جديدة حقيقية ومفهومة برمجياً في الذاكرة
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    
+    # تمرير البيانات الجاهزة والنظيفة 100% للمكتبة الرسمية
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client
@@ -125,7 +130,7 @@ with search_type[1]:
             selected_product = matched_barcode.iloc[0]
             st.success("✅ تم العثور على الصنف بالباركود!")
         else:
-            st.warning("⚠️ هذا الباركود غير مسجل في جدول الأصناف!")
+            st.warning("⚠️ هذا الباركود غير مسجل in جدول الأصناف!")
 
 if selected_product is not None:
     name_col = df.columns[0]
