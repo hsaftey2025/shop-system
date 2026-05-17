@@ -1,6 +1,4 @@
-streamlit
-gspread
-oauth2client
-pandas
-pyzbar
+zxing-cpp
 pillow
+pandas
+requests
