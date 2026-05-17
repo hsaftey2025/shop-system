@@ -4,6 +4,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from datetime import datetime
 import streamlit.components.v1 as components
+import json
+import os
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -19,14 +21,24 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. الاتصال بجوجل شيت وتجهيز الصفحات تلقائياً عبر السحابة الآمنة
+# 2. الاتصال بجوجل شيت عبر ملف التوثيق المباشر والمطهر
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # تحويل الإعدادات من نظام TOML السحابي مباشرة إلى قاموس متوافق مع بايثون
-    creds_dict = dict(st.secrets["gspread_creds"])
-    
+    filename = "creds.json"
+    if not os.path.exists(filename):
+        st.error(f"⚠️ ملف الاعتماديات '{filename}' غير موجود في المجلد الرئيسي للبرنامج!")
+        st.stop()
+        
+    # قراءة الملف وتنظيف المفتاح الخاص من أي تشوهات أو فراغات زائدة تسبب الـ padding
+    with open(filename, "r", encoding="utf-8") as f:
+        creds_dict = json.load(f)
+        
+    if "private_key" in creds_dict:
+        # استبدال أي سطور مائلة مشوهة وتطهير المفتاح تماماً
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n").strip()
+        
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     return client
@@ -78,34 +90,28 @@ st.write("---")
 # 5. قراءة الباركود أو البحث باسم المنتج المحدث بناءً على الجدول
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-# الميزة المطلوبة: فتح الكاميرا للبث الحي والمسح التلقائي الفوري (تستقبل الأونلاين بنجاح)
 enable_camera = st.checkbox("📷 تشغيل الكاميرا لمسح الباركود مباشرة (بث حي)")
 scanned_barcode = ""
 
 if enable_camera:
     st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا الخلفية نحو ملصق الباركود ليتم التقاطه فورا وبشكل حي:</p>", unsafe_allow_html=True)
     
-    # دمج قارئ جافاسكريبت متطور للبث الحي فائق السرعة
     scanner_html = """
     <script src="https://unpkg.com/html5-qrcode"></script>
     <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid #ddd;"></div>
     <script>
         function onScanSuccess(decodedText, decodedResult) {
-            // إرسال الرمز الممسوح تلقائياً للسيرفر
             window.parent.postMessage({type: 'streamlit:setComponentValue', value: decodedText}, '*');
         }
         let html5QrcodeScanner = new Html5QrcodeScanner("interactive-reader", { fps: 20, qrbox: {width: 250, height: 150} });
         html5QrcodeScanner.render(onScanSuccess);
     </script>
     """
-    # التقاط القيمة الممسوحة حياً
     scanned_barcode = components.html(scanner_html, height=350)
 
-# تقسيم واجهة الإدخال إلى حقلين (البحث بالاسم أو المسح بالباركود)
 search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود"])
 selected_product = None
 
-# أ) التبويب الأول: البحث اليدوي الذكي بالاسم
 with search_type[0]:
     search_query = st.text_input("اكتب اسم المنتج أو جزء منه للبحث:", placeholder="مثال: يو شبكة، انتركم، وصلة...")
     if search_query and not df.empty:
@@ -119,9 +125,7 @@ with search_type[0]:
         else:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق لهذا الاسم!")
 
-# ب) التبويب الثاني: البحث السريع بالباركود
 with search_type[1]:
-    # تعبئة حقل الإدخال تلقائياً بمجرد التقاط الكاميرا للرمز الحي
     default_barcode_val = str(scanned_barcode) if scanned_barcode else ""
     barcode_input = st.text_input("أدخل أو امسح الباركود الحالي:", value=default_barcode_val, placeholder="اضغط هنا للبدء بالمسح اليدوي أو بالليزر...")
     
@@ -134,12 +138,10 @@ with search_type[1]:
         else:
             st.warning("⚠️ هذا الباركود غير مسجل في جدول الأصناف!")
 
-# ج) شاشة معالجة الصنف الحالي المختار (تعديل السعر والكمية اللامحدودة)
 if selected_product is not None:
     name_col = df.columns[0]
     p_name = selected_product[name_col]
     
-    # جلب السعر تلقائياً من العمود الرابع D بناءً على تعديل جدولك الأخير
     default_price = 0.0
     if len(df.columns) > 3:
         try:
@@ -167,7 +169,7 @@ if selected_product is not None:
 
 st.write("---")
 
-# 6. عرض الفاتورة الموحدة الكاملة والترحيل في سطر واحد
+# 6. عرض الفاتورة الموحدة الكاملة والترحيل
 st.subheader(f"📋 تفاصيل الفاتورة الحالية رقم #{st.session_state.invoice_num}")
 
 if st.session_state.cart:
@@ -179,7 +181,7 @@ if st.session_state.cart:
     
     items_summary = " + ".join([f"{item['المنتج']} [العدد: {item['الكمية']}]" for item in st.session_state.cart])
     
-    st.markdown(f"**نص الفاتورة الموحد الجاهز للترحيل لجوجل شيت:**")
+    st.markdown(f"**نص الفاتورة الموحد الجاهز للترحيل لـ Google Sheets:**")
     st.info(items_summary)
     
     if not customer_name.strip():
@@ -217,7 +219,7 @@ if st.session_state.cart:
                             "غير مدفوع"
                         ])
                         
-                    st.success(f"🎉 ممتاز! تم حفظ وترحيل فاتورة الزبون ({customer_name}) ككتلة واحدة مدمجة بنجاح وبدون تفكيك!")
+                    st.success(f"🎉 ممتاز! تم حفظ وترحيل فاتورة الزبون ({customer_name}) بنجاح!")
                     st.session_state.cart = []
                     st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
                     st.rerun()
