@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from PIL import Image
+from PIL import Image, ImageOps, ImageEnhance
 import zxingcpp
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
@@ -57,31 +57,40 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف (باستخدام محرك ZXing المتطور والنقي)
+# 4. قسم إضافة الأصناف (معالجة ذكية وسريعة للصور)
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-enable_camera = st.checkbox("📷 تشغيل كاميرا الفحص الرسمية الآمنة")
+enable_camera = st.checkbox("📷 تشغيل كاميرا الفحص السريعة")
 
 if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>ضع الباركود بشكل أفقي وقريب أمام الكاميرا، ثم اضغط على زر التقاط الصورة:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right;color:gray;'>ضع الباركود بشكل مستقيم وقريب، ثم التقط الصورة:</p>", unsafe_allow_html=True)
     
-    # الكاميرا الرسمية المستقرة من ستريمليت
-    img_file = st.camera_input("التقط صورة الباركود الحالية")
+    img_file = st.camera_input("التقط صورة الباركود")
     
     if img_file is not None:
         try:
-            # فتح الصورة ومعالجتها بمحرك بايثون النقي والشامل لجميع أنواع الباركودات
+            # 1. فتح الصورة الأصلية
             img = Image.open(img_file)
-            results = zxingcpp.read_barcodes(img)
+            
+            # 2. تحسين الصورة لتسريع القراءة الفورية:
+            # تحويلها للأبيض والأسود لإزالة تشويش الألوان
+            img_processed = ImageOps.grayscale(img)
+            # زيادة التباين لتوضيح الخطوط الرفيعة جداً
+            enhancer = ImageEnhance.Contrast(img_processed)
+            img_processed = enhancer.enhance(2.0)
+            # تصغير الأبعاد لتسريع المعالجة البرمجية بالسيرفر
+            img_processed.thumbnail((800, 800))
+            
+            # 3. الفحص باستخدام المحرك المستقر
+            results = zxingcpp.read_barcodes(img_processed)
             
             if results:
-                # التقاط أول رمز يتم العثور عليه في الصورة فوراً
                 st.session_state.scanned_barcode_val = str(results[0].text).strip()
-                st.success(f"🎉 تم قراءة الباركود بنجاح: {st.session_state.scanned_barcode_val}")
+                st.success(f"🎉 تم قراءة الباركود فوراً: {st.session_state.scanned_barcode_val}")
             else:
-                st.warning("⚠️ لم يتم رصد باركود واضح في الصورة. يرجى تقريب ملصق المنتج من الكاميرا وإعادة لقط الصورة بوضوح.")
+                st.warning("⚠️ لم يقرأ بدقة. جرب تقريب الملصق أكثر من الكاميرا ليكون الخط واضحاً، وتأكد من عدم وجود انعكاس قوي للإضاءة.")
         except Exception as e:
-            st.error(f"حدث خطأ أثناء فك التشفير: {e}")
+            st.error(f"حدث خطأ أثناء معالجة الصورة: {e}")
 
 search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود"])
 selected_product = None
