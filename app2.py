@@ -45,14 +45,23 @@ if 'invoice_num' not in st.session_state:
 if 'barcode_counter' not in st.session_state:
     st.session_state.barcode_counter = 0
 
+# عداد ديناميكي سحري لتفريغ خانة "اسم الزبون" فوراً بعد الحفظ
+if 'customer_counter' not in st.session_state:
+    st.session_state.customer_counter = 0
+
 # 3. الواجهة الرئيسية
 st.title("⚡ نظام الفواتير الموحدة السريع")
 st.write("---")
 
 st.subheader("👤 بيانات الزبون والفاتورة")
 
-# حقل اسم الزبون مع تنظيف المسافات لتسهيل التحقق
-customer_name = st.text_input("اسم الزبون (إجباري لحفظ الفاتورة):", placeholder="اكتب اسم الزبون هنا لفتح الفاتورة...").strip()
+# حقل اسم الزبون مرتبط بمفتاح ديناميكي ليتم مسحه وتصفيره برمجياً بعد الحفظ
+customer_name = st.text_input(
+    "اسم الزبون (إجباري لحفظ الفاتورة):", 
+    placeholder="اكتب اسم الزبون هنا لفتح الفاتورة...",
+    key=f"customer_name_field_{st.session_state.customer_counter}"
+).strip()
+
 customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذمم / دين"], horizontal=True)
 
 st.write("---")
@@ -112,7 +121,6 @@ if selected_product is not None:
         quantity = st.number_input("الكمية المراد بيعها:", min_value=1, value=1, step=1)
         
     if st.button("🛒 إضافة هذا الصنف إلى الفاتورة الحالية"):
-        # آلية التجميع الذكي: التحقق إذا كان المنتج موجود مسبقاً في السلة لتحديث كميته بدلاً من تكرار السطر
         existing_item_index = None
         for index, item in enumerate(st.session_state.cart):
             if item["المنتج"] == p_name and item["السعر"] == custom_price:
@@ -120,12 +128,10 @@ if selected_product is not None:
                 break
         
         if existing_item_index is not None:
-            # تجميع المنتج وتحديث الكمية والإجمالي في نفس السطر الفاتورة
             st.session_state.cart[existing_item_index]["الكمية"] += quantity
             st.session_state.cart[existing_item_index]["الإجمالي"] = st.session_state.cart[existing_item_index]["الكمية"] * custom_price
             st.toast(f"🔄 تم تحديث كمية {p_name} وتجميعها في الفاتورة الموحدة!", icon="✅")
         else:
-            # إضافة كسطر جديد إذا لم يكن موجوداً مسبقاً بنفس السعر
             new_item = {
                 "المنتج": p_name,
                 "السعر": custom_price,
@@ -135,7 +141,6 @@ if selected_product is not None:
             st.session_state.cart.append(new_item)
             st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         
-        # تصفير خانة الباركود تلقائياً للاستعداد للمنتج التالي
         st.session_state.barcode_counter += 1
         st.rerun()
 
@@ -153,25 +158,27 @@ if st.session_state.cart:
     
     st.write("")
     
-    # زر الحفظ الذكي مع القيود المطلوبة
     if st.button("💾 حفظ الفاتورة الحالية في السجل وتصفير السلة"):
         if not customer_name:
-            # منع الحفظ وعرض تنبيه صارم باللون الأحمر إذا كان الاسم فارغاً
             st.error("❌ خطأ: لا يمكن حفظ الفاتورة بدون كتابة اسم الزبون أولاً!")
         else:
-            # هنا تتم عملية الحفظ الناجحة وتصفير السلة للزبون التالي
             st.success(f"🎉 تم حفظ فاتورة الزبون ({customer_name}) بنجاح بقيمة {total_amount} شيكل!")
             
-            # تصفير البيانات لفتح فاتورة جديدة تماماً للزبون القادم
+            # تفريغ السلة وتفريغ خانة الباركود وتوليد رقم فاتورة جديد
             st.session_state.cart = []
             st.session_state.barcode_counter += 1
             st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
-            st.toast("تم تصفير السلة وفتح فاتورة جديدة بنجاح! ⚡")
+            
+            # التحديث الجديد: زيادة العداد يجبر نظام ستريمليت على مسح وتصفير خانة اسم الزبون تماماً للزبون القادم
+            st.session_state.customer_counter += 1
+            
+            st.toast("تم تصفير السلة واسم الزبون بنجاح! ⚡")
             st.rerun()
             
     if st.button("🔄 إلغاء وتفريغ الفاتورة الحالية بالكامل دون حفظ"):
         st.session_state.cart = []
         st.session_state.barcode_counter += 1
+        st.session_state.customer_counter += 1  # تفريغ اسم الزبون أيضاً عند إلغاء الفاتورة
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
