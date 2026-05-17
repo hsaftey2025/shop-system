@@ -19,14 +19,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. الاتصال بجوجل شيت وتجهيز الصفحات تلقائياً عبر السحابة الآمنة
+# 2. الاتصال بجوجل شيت عبر معالجة ذكية ومباشرة للـ Secrets البرمجية
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # جلب الإعدادات المباشرة من الـ Secrets وتحويلها لقاموس بايثون سليم
+    # جلب البيانات كقاموس بايثون نقي لتعديله برمجياً
     creds_dict = dict(st.secrets["gspread_creds"])
     
+    # الحل القاطع لخطأ Padding: إصلاح الرموز المائلة المزدوجة برمجياً وتحويلها لأسطر حقيقية
+    if "private_key" in creds_dict:
+        # إزالة أي علامات اقتباس عشوائية قد تلحق بالنص، ثم تحويل العلامات لأسطر حقيقية
+        cleaned_key = creds_dict["private_key"].strip("'\"")
+        creds_dict["private_key"] = cleaned_key.replace("\\n", "\n")
+        
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     return client
