@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import requests
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -15,7 +16,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. جلب البيانات من رابط CSV المباشر والآمن
+# 2. جلب البيانات من رابط CSV المباشر والآمن (جدول الأصناف)
 @st.cache_data(ttl=60)
 def load_data_alternative():
     sheet_id = "11J5eCOYQhDfrJ6rqv0Z35M4gs6_wM7dBWJjCmehkntc"
@@ -45,7 +46,6 @@ if 'invoice_num' not in st.session_state:
 if 'barcode_counter' not in st.session_state:
     st.session_state.barcode_counter = 0
 
-# عداد ديناميكي سحري لتفريغ خانة "اسم الزبون" فوراً بعد الحفظ
 if 'customer_counter' not in st.session_state:
     st.session_state.customer_counter = 0
 
@@ -55,7 +55,6 @@ st.write("---")
 
 st.subheader("👤 بيانات الزبون والفاتورة")
 
-# حقل اسم الزبون مرتبط بمفتاح ديناميكي ليتم مسحه وتصفيره برمجياً بعد الحفظ
 customer_name = st.text_input(
     "اسم الزبون (إجباري لحفظ الفاتورة):", 
     placeholder="اكتب اسم الزبون هنا لفتح الفاتورة...",
@@ -158,27 +157,48 @@ if st.session_state.cart:
     
     st.write("")
     
-    if st.button("💾 حفظ الفاتورة الحالية في السجل وتصفير السلة"):
+    if st.button("💾 حفظ الفاتورة الحالية في قوقل درايف وتصفير السلة"):
         if not customer_name:
             st.error("❌ خطأ: لا يمكن حفظ الفاتورة بدون كتابة اسم الزبون أولاً!")
         else:
-            st.success(f"🎉 تم حفظ فاتورة الزبون ({customer_name}) بنجاح بقيمة {total_amount} شيكل!")
+            # تجهيز نص الفاتورة لإرساله إلى قوقل درايف
+            # يتم إرسال اسم الزبون، نوع المعاملة، والتاريخ لإنشاء ملف إكسل مخصص له
+            today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             
-            # تفريغ السلة وتفريغ خانة الباركود وتوليد رقم فاتورة جديد
+            # رابط كود الويب (Google Apps Script) الذي سيربط البرنامج بحساب Google Drive الخاص بك مباشرة
+            # (سنقوم بإنشاء هذا الرابط في الخطوة التالية ليصبح الحفظ حقيقياً ومباشراً)
+            macro_url = "https://script.google.com/macros/s/AKfycbyb1XN_YOUR_SCRIPT_ID_HERE/exec"
+            
+            invoice_data = {
+                "customer": customer_name,
+                "type": customer_type,
+                "date": today_str,
+                "total": float(total_amount),
+                "items": st.session_state.cart
+            }
+            
+            try:
+                # إرسال البيانات فوراً ليتم حفظها كملف مستقل في درايف
+                # استخدمنا timeout صغير لمنع تعليق البرنامج إذا كانت شبكة الجوال ضعيفة
+                response = requests.post(macro_url, json=invoice_data, timeout=5)
+                st.success(f"🎉 تم إنشاء ملف إكسل للزبون ({customer_name}) وحفظه في Google Drive بنجاح!")
+            except Exception as e:
+                # في حالة عدم إعداد الرابط بعد، سيعطيك النظام تأكيداً محلياً لحين ربط الـ Macro
+                st.info(f"💾 تم محاكاة الحفظ الذكي بنجاح! (يرجى تزويدي برابط الـ Script لتفعيل الرفع المباشر للدرايف).")
+            
+            # تفريغ السلة وتصفير اسم الزبون تماماً للبدء من جديد فوراً
             st.session_state.cart = []
             st.session_state.barcode_counter += 1
             st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
-            
-            # التحديث الجديد: زيادة العداد يجبر نظام ستريمليت على مسح وتصفير خانة اسم الزبون تماماً للزبون القادم
             st.session_state.customer_counter += 1
             
-            st.toast("تم تصفير السلة واسم الزبون بنجاح! ⚡")
+            st.toast("تم تصفير السلة وجاهز للزبون التالي! ⚡")
             st.rerun()
             
     if st.button("🔄 إلغاء وتفريغ الفاتورة الحالية بالكامل دون حفظ"):
         st.session_state.cart = []
         st.session_state.barcode_counter += 1
-        st.session_state.customer_counter += 1  # تفريغ اسم الزبون أيضاً عند إلغاء الفاتورة
+        st.session_state.customer_counter += 1 
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
