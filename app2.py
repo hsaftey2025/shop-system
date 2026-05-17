@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import streamlit.components.v1 as components
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -16,7 +15,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. جلب البيانات من رابط CSV المباشر والآمن
+# 2. جلب البيانات من رابط CSV المباشر والآمن من السحابة
 @st.cache_data(ttl=60)
 def load_data_alternative():
     sheet_id = "11J5eCOYQhDfrJ6rqv0Z35M4gs6_wM7dBWJjCmehkntc"
@@ -36,10 +35,7 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة الذاكرة المؤقتة للباركود
-if 'scanned_barcode_val' not in st.session_state:
-    st.session_state.scanned_barcode_val = ""
-
+# إدارة سلة المبيعات ورقم الفاتورة
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 
@@ -56,57 +52,8 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف (البث الحي التلقائي الفوري)
+# 4. قسم إضافة الأصناف السريع
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
-
-enable_camera = st.checkbox("📷 تشغيل البث الحي لكاميرا مسح الباركود تلقائياً")
-
-if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا مباشرة نحو الباركود وسيقوم بالنقر والقراءة تلقائياً بدون لقطة شاشة:</p>", unsafe_allow_html=True)
-    
-    # كود جافاسكربت مطور مع محرك متقدم يضمن الفوكس التلقائي والمسح الفوري
-    scanner_html = """
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:3px solid #00c853; background-color: #f9f9f9;"></div>
-    <script>
-        function onScanSuccess(decodedText, decodedResult) {
-            // إرسال النص الصافي المقروء فوراً إلى نظام ستريمليت وتحديث الحقول تلقائياً
-            window.parent.postMessage({type: 'streamlit:setComponentValue', value: String(decodedText)}, '*');
-        }
-
-        // إعداد دعم شامل لجميع الصيغ التجارية الطولية والمربعة
-        const formatsToSupport = [
-            Html5QrcodeSupportedFormats.QR_CODE,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E
-        ];
-
-        let html5QrcodeScanner = new Html5QrcodeScanner(
-            "interactive-reader", 
-            { 
-                fps: 30, // بث سريع جداً لالتقاط الرموز أثناء الحركة
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    // صندوق فحص مستطيل وعريض جداً يناسب ملصقات المنتجات تماماً
-                    return { width: Math.floor(viewfinderWidth * 0.85), height: Math.floor(viewfinderHeight * 0.45) };
-                },
-                formatsToSupport: formatsToSupport,
-                rememberLastUsedCamera: true,
-                aspectRatio: 1.777778 // توافق كامل مع أبعاد شاشات الجوال الحديثة
-            }
-        );
-        
-        html5QrcodeScanner.render(onScanSuccess);
-    </script>
-    """
-    # تفعيل خيار allow="camera" المباشر لإعطاء الصلاحية المطلقة للمتصفح لتمرير القراءة الحية
-    camera_result = components.html(scanner_html, height=340, scrolling=False)
-    
-    if camera_result and type(camera_result) == str and camera_result.strip() != "":
-        st.session_state.scanned_barcode_val = camera_result.strip()
 
 search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود"])
 selected_product = None
@@ -124,8 +71,8 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    # استقبال الباركود تلقائياً من البث الحي بمجرد الرؤية
-    barcode_input = st.text_input("رمز الباركود الحالي اللحظي:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز المقروء هنا تلقائياً بمجرد توجيه الكاميرا...")
+    # هذا الحقل مجهز لاستقبال أي قراءة باركود فوراً سواء يدوياً، بالليزر، أو بكاميرا لوحة المفاتيح
+    barcode_input = st.text_input("اضغط هنا وامسح الباركود:", value="", placeholder="امسح الباركود ليتعرف عليه النظام تلقائياً...")
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
@@ -163,13 +110,12 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        st.session_state.scanned_barcode_val = "" # تصفير القراءة فوراً للاستعداد للمنتج التالي تلقائياً
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
 st.write("---")
 
-# 5. عرض الفاتورة
+# 5. عرض الفاتورة وإدارتها
 st.subheader(f"📋 تفاصيل الفاتورة الحالية رقم #{st.session_state.invoice_num}")
 
 if st.session_state.cart:
@@ -181,8 +127,7 @@ if st.session_state.cart:
     
     if st.button("🔄 تفريغ الفاتورة وتصفير السلة للبدء من جديد"):
         st.session_state.cart = []
-        st.session_state.scanned_barcode_val = ""
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
-    st.info("الفاتورة فارغة حالياً. ابحث باسم الصنف أو وجه الكاميرا نحو الباركود للبث الحي لبناء الفاتورة.")
+    st.info("الفاتورة فارغة حالياً. ابحث باسم الصنف أو امسح الباركود لبناء الفاتورة.")
