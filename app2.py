@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import streamlit.components.v1 as components
-import requests
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -17,13 +16,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. الحل البديل بالكامل: قراءة البيانات مباشرة عبر رابط CSV لمنع أخطاء الـ PEM نهائياً
-@st.cache_data(ttl=60)  # تحديث البيانات كل دقيقة تلقائياً
+# 2. جلب البيانات من رابط CSV المباشر والآمن
+@st.cache_data(ttl=60)
 def load_data_alternative():
-    # تحويل رابط الشيت العادي إلى رابط تصدير CSV مباشر
     sheet_id = "11J5eCOYQhDfrJ6rqv0Z35M4gs6_wM7dBWJjCmehkntc"
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
-    
     try:
         df = pd.read_csv(csv_url)
         return df
@@ -34,19 +31,22 @@ def load_data_alternative():
 df = load_data_alternative()
 
 if not df.empty:
-    st.sidebar.success("متصل بجدول الأصناف مباشرة عبر السحابة! ✅")
+    st.sidebar.success("متصل بنظام باسل المطور بنجاح! ✅")
 else:
-    st.error("خطأ: تعذر جلب البيانات. تأكد من أن خيار المشاركة في الجدول مضبوط على 'Anyone with the link'.")
+    st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# 3. إدارة سلة المبيعات ورقم الفاتورة
+# إدارة الذاكرة المؤقتة للباركود الممسوح لمنع خطأ DeltaGenerator
+if 'scanned_barcode_val' not in st.session_state:
+    st.session_state.scanned_barcode_val = ""
+
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 
 if 'invoice_num' not in st.session_state:
     st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
 
-# 4. الواجهة الرئيسية بالتطبيق
+# 3. الواجهة الرئيسية
 st.title("⚡ نظام الفواتير الموحدة السريع")
 st.write("---")
 
@@ -56,31 +56,38 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 5. قراءة الباركود أو البحث باسم المنتج
+# 4. قسم إضافة الأصناف (البحث والباركود)
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
+
 enable_camera = st.checkbox("📷 تشغيل الكاميرا لمسح الباركود مباشرة (بث حي)")
-scanned_barcode = ""
 
 if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا الخلفية نحو ملصق الباركود:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا الخلفية نحو ملصق الباركود ليتم لقطه تلقائياً:</p>", unsafe_allow_html=True)
+    
+    # كود جافاسكربت محسن يرسل البيانات كـ String نقي لمنع الأخطاء البرمجية
     scanner_html = """
     <script src="https://unpkg.com/html5-qrcode"></script>
     <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid #ddd;"></div>
     <script>
         function onScanSuccess(decodedText, decodedResult) {
-            window.parent.postMessage({type: 'streamlit:setComponentValue', value: decodedText}, '*');
+            // إرسال النص الصافي فقط إلى بايثون
+            window.parent.postMessage({type: 'streamlit:setComponentValue', value: String(decodedText)}, '*');
         }
-        let html5QrcodeScanner = new Html5QrcodeScanner("interactive-reader", { fps: 20, qrbox: {width: 250, height: 150} });
+        let html5QrcodeScanner = new Html5QrcodeScanner("interactive-reader", { fps: 15, qrbox: {width: 250, height: 150} });
         html5QrcodeScanner.render(onScanSuccess);
     </script>
     """
-    scanned_barcode = components.html(scanner_html, height=350)
+    camera_result = components.html(scanner_html, height=320)
+    
+    # حفظ القراءة في الـ session_state فوراً وبشكل آمن إذا كانت موجودة وصحيحة
+    if camera_result and type(camera_result) == str and camera_result.strip() != "":
+        st.session_state.scanned_barcode_val = camera_result.strip()
 
 search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود"])
 selected_product = None
 
 with search_type[0]:
-    search_query = st.text_input("اكتب اسم المنتج أو جزء منه للبحث:", placeholder="مثال: يو شبكة...")
+    search_query = st.text_input("اكتب اسم المنتج أو جزء منه للبحث:", placeholder="مثال: يو شبكة، انتركم...")
     if search_query and not df.empty:
         name_col = df.columns[0]
         matched_df = df[df[name_col].astype(str).str.contains(search_query, case=False, na=False)]
@@ -92,8 +99,9 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    default_barcode_val = str(scanned_barcode) if scanned_barcode else ""
-    barcode_input = st.text_input("أدخل أو امسح الباركود الحالي:", value=default_barcode_val)
+    # إدخال الباركود يدوياً، أو استقبال القراءة الجاهزة والمحمية من الكاميرا
+    barcode_input = st.text_input("أدخل أو امسح الباركود الحالي:", value=st.session_state.scanned_barcode_val, placeholder="اضغط هنا للمسح بالليزر أو استقبال الكاميرا...")
+    
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
         matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
@@ -101,11 +109,12 @@ with search_type[1]:
             selected_product = matched_barcode.iloc[0]
             st.success("✅ تم العثور على الصنف بالباركود!")
         else:
-            st.warning("⚠️ هذا الباركود غير مسجل!")
+            st.warning("⚠️ هذا الباركود غير مسجل في جدول الأصناف!")
 
 if selected_product is not None:
     name_col = df.columns[0]
     p_name = selected_product[name_col]
+    
     default_price = 0.0
     if len(df.columns) > 3:
         try:
@@ -114,34 +123,41 @@ if selected_product is not None:
             default_price = 0.0
 
     st.markdown(f"### الصنف الحالي المختار: **{p_name}**")
+    
     col1, col2 = st.columns(2)
     with col1:
         custom_price = st.number_input("سعر البيع الحالي (شيكل):", min_value=0.0, value=default_price, step=0.5)
     with col2:
         quantity = st.number_input("الكمية المراد بيعها:", min_value=1, value=1, step=1)
         
-    if st.button("🛒 إضافة هذا الصنف إلى الفاتورة"):
-        item = {"المنتج": p_name, "السعر": custom_price, "الكمية": quantity, "الإجمالي": custom_price * quantity}
+    if st.button("🛒 إضافة هذا الصنف إلى الفاتورة الحالية"):
+        item = {
+            "المنتج": p_name,
+            "السعر": custom_price,
+            "الكمية": quantity,
+            "الإجمالي": custom_price * quantity
+        }
         st.session_state.cart.append(item)
+        # تفريغ الباركود الممسوح للاستعداد للقطة التالية
+        st.session_state.scanned_barcode_val = ""
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
+        st.rerun()
 
 st.write("---")
 
-# 6. عرض الفاتورة والترحيل
+# 5. عرض الفاتورة وإدارتها
 st.subheader(f"📋 تفاصيل الفاتورة الحالية رقم #{st.session_state.invoice_num}")
 
 if st.session_state.cart:
     cart_df = pd.DataFrame(st.session_state.cart)
     st.dataframe(cart_df[["المنتج", "السعر", "الكمية", "الإجمالي"]], use_container_width=True)
+    
     total_amount = cart_df["الإجمالي"].sum()
     st.markdown(f"### 💰 إجمالي حساب الفاتورة: **{total_amount} شيكل**")
     
-    items_summary = " + ".join([f"{item['المنتج']} [العدد: {item['الكمية']}]" for item in st.session_state.cart])
-    
-    # لإبقاء النظام يعمل بدون تعقيد ترحيل الأسطر التشفيرية، سيعطيك النظام النص جاهزاً لنسخه أو إرساله
-    st.success("🧾 الفاتورة جاهزة ومحدثة!")
-    if st.button("🔄 تفريغ لفتح فاتورة جديدة"):
+    if st.button("🔄 تفريغ الفاتورة وتصفير السلة للبدء من جديد"):
         st.session_state.cart = []
+        st.session_state.scanned_barcode_val = ""
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
