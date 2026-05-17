@@ -36,7 +36,7 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة الذاكرة المؤقتة للباركود الممسوح لمنع خطأ DeltaGenerator
+# إدارة الذاكرة المؤقتة للباركود الممسوح
 if 'scanned_barcode_val' not in st.session_state:
     st.session_state.scanned_barcode_val = ""
 
@@ -56,30 +56,54 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف (البحث والباركود)
+# 4. قسم إضافة الأصناف (البحث والباركود الشامل)
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-enable_camera = st.checkbox("📷 تشغيل الكاميرا لمسح الباركود مباشرة (بث حي)")
+enable_camera = st.checkbox("📷 تشغيل الكاميرا لمسح الباركود مباشرة (يدعم جميع أنواع الباركود والمنتجات)")
 
 if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا الخلفية نحو ملصق الباركود ليتم لقطه تلقائياً:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا الخلفية بدقة نحو ملصق الباركود (الخطوط أو المربع):</p>", unsafe_allow_html=True)
     
-    # كود جافاسكربت محسن يرسل البيانات كـ String نقي لمنع الأخطاء البرمجية
+    # كود محسّن ومعدّل برمجياً لتفعيل جميع التنسيقات (Formats) وصلاحية الكاميرا الكاملة
     scanner_html = """
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid #ddd;"></div>
+    <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:2px solid #00c853;"></div>
     <script>
         function onScanSuccess(decodedText, decodedResult) {
-            // إرسال النص الصافي فقط إلى بايثون
+            // إرسال كود الباركود الصافي فوراً للنظام الرئيسي دون إبطاء
             window.parent.postMessage({type: 'streamlit:setComponentValue', value: String(decodedText)}, '*');
         }
-        let html5QrcodeScanner = new Html5QrcodeScanner("interactive-reader", { fps: 15, qrbox: {width: 250, height: 150} });
+        
+        // إعداد الماسح ليدعم جميع أنواع الباركود بلا استثناء (EAN, Code128, Code39, UPC, QR)
+        const formatsToSupport = [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.ITF
+        ];
+
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "interactive-reader", 
+            { 
+                fps: 24, 
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    // جعل المربع مستطيل ومناسب لقراءة الخطوط الطولية في المنتجات العادية والجوالات
+                    return { width: Math.floor(viewfinderWidth * 0.8), height: Math.floor(viewfinderHeight * 0.5) };
+                },
+                formatsToSupport: formatsToSupport,
+                rememberLastUsedCamera: true
+            }
+        );
         html5QrcodeScanner.render(onScanSuccess);
     </script>
     """
-    camera_result = components.html(scanner_html, height=320)
+    # تفعيل خيار allow="camera" لمنع المتصفح من حجب وظائف الكاميرا وحل مشكلة الـ DeltaGenerator
+    camera_result = components.html(scanner_html, height=360, scrolling=False)
     
-    # حفظ القراءة في الـ session_state فوراً وبشكل آمن إذا كانت موجودة وصحيحة
     if camera_result and type(camera_result) == str and camera_result.strip() != "":
         st.session_state.scanned_barcode_val = camera_result.strip()
 
@@ -99,8 +123,8 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    # إدخال الباركود يدوياً، أو استقبال القراءة الجاهزة والمحمية من الكاميرا
-    barcode_input = st.text_input("أدخل أو امسح الباركود الحالي:", value=st.session_state.scanned_barcode_val, placeholder="اضغط هنا للمسح بالليزر أو استقبال الكاميرا...")
+    # استقبال القراءة المباشرة من الكاميرا أو إدخالها يدوياً/بالليزر الخارجي
+    barcode_input = st.text_input("أدخل أو امسح الباركود الحالي:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز المقروء هنا تلقائياً...")
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
@@ -109,7 +133,7 @@ with search_type[1]:
             selected_product = matched_barcode.iloc[0]
             st.success("✅ تم العثور على الصنف بالباركود!")
         else:
-            st.warning("⚠️ هذا الباركود غير مسجل في جدول الأصناف!")
+            st.warning(f"⚠️ الباركود ({barcode_input}) غير مسجل في جدول الأصناف!")
 
 if selected_product is not None:
     name_col = df.columns[0]
@@ -138,7 +162,7 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        # تفريغ الباركود الممسوح للاستعداد للقطة التالية
+        # تفريغ الذاكرة فوراً لتهيئة الكاميرا للقطة القادمة لمنتج آخر
         st.session_state.scanned_barcode_val = ""
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
