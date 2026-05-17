@@ -36,7 +36,7 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة الذاكرة المؤقتة للباركود المقروء
+# إدارة الذاكرة المؤقتة لمنع التصفير التلقائي عند التحديث
 if 'scanned_barcode_val' not in st.session_state:
     st.session_state.scanned_barcode_val = ""
 
@@ -56,33 +56,41 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف (كاميرا البث الحي المستقرة والنقية)
+# 4. قسم إضافة الأصناف
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-enable_camera = st.checkbox("📷 تشغيل الكاميرا الحية لمسح الباركود تلقائياً")
+enable_camera = st.checkbox("📷 تشغيل الكاميرا الذكية المحدثة")
 
 if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا بشكل أفقي وثابت نحو الباركود، وبمجرد الوميض الأخضر سيتم جلبه تلقائياً:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا نحو الباركود، وعندما يتم رصده بنجاح سيثبت الرمز في المستطيل فوراً:</p>", unsafe_allow_html=True)
     
-    # كود جافاسكربت يقوم بالتنظيف اللحظي وإرسال القراءة الصافية بدون تعليق
+    # كود جافاسكربت هجين يقوم بحفظ القراءة داخل حقل إدخال HTML مستقل يمنع التصفير العشوائي للمتصفح
     scanner_html = """
     <script src="https://unpkg.com/html5-qrcode"></script>
     <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:3px solid #00c853; background:#000;"></div>
+    <div style="margin-top: 10px; text-align: center;">
+        <input type="text" id="result-holder" readonly style="width:70%; height:40px; text-align:center; font-size:18px; font-weight:bold; border-radius:8px; border:2px solid #ccc;" placeholder="الرمز المقروء سيثبت هنا...">
+        <button onclick="sendToStreamlit()" style="width:25%; height:42px; background-color:#00c853; color:white; font-weight:bold; border:none; border-radius:8px; cursor:pointer;">تأكيد ✅</button>
+    </div>
     <script>
-        let isScanningAllowed = true;
-
         function onScanSuccess(decodedText, decodedResult) {
-            if (isScanningAllowed && decodedText) {
-                isScanningAllowed = false; // إيقاف مؤقت لحماية السيرفر من التكرار المزعج
-                
-                // إرسال الكود الصافي مباشرة إلى بايثون
+            if(decodedText) {
+                document.getElementById('result-holder').value = decodedText;
+                // إضاءة المستطيل باللون الأخضر للتأكيد البصري للمستخدم
+                document.getElementById('result-holder').style.borderColor = "#00c853";
+                document.getElementById('result-holder').style.backgroundColor = "#e8f5e9";
+            }
+        }
+
+        function sendToStreamlit() {
+            var finalCode = document.getElementById('result-holder').value;
+            if(finalCode) {
                 window.parent.postMessage({
                     type: 'streamlit:setComponentValue', 
-                    value: String(decodedText).trim()
+                    value: String(finalCode).trim()
                 }, '*');
-                
-                // إعادة السماح بالفحص بعد ثانيتين لالتقاط منتج آخر
-                setTimeout(() => { isScanningAllowed = true; }, 2000);
+            } else {
+                alert("يرجى مسح منتج أولاً قبل الضغط على تأكيد!");
             }
         }
         
@@ -99,7 +107,7 @@ if enable_camera:
         let html5QrcodeScanner = new Html5QrcodeScanner(
             "interactive-reader", 
             { 
-                fps: 25, 
+                fps: 20, 
                 qrbox: function(viewfinderWidth, viewfinderHeight) {
                     return { width: Math.floor(viewfinderWidth * 0.9), height: Math.floor(viewfinderHeight * 0.45) };
                 },
@@ -111,13 +119,13 @@ if enable_camera:
         html5QrcodeScanner.render(onScanSuccess);
     </script>
     """
-    camera_result = components.html(scanner_html, height=320, scrolling=False)
+    # عرض المكون مع مساحة كافية للزر الجديد المضمون لحل مشكلة قفل وجفل الصفحة
+    camera_result = components.html(scanner_html, height=390, scrolling=False)
     
-    # التقاط النتيجة وحفظها فوراً في الذاكرة لتعبئة المستطيل تلقائياً
     if camera_result and type(camera_result) == str and camera_result.strip() != "":
         st.session_state.scanned_barcode_val = camera_result.strip()
 
-search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود الممسوح"])
+search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود الحالي"])
 selected_product = None
 
 with search_type[0]:
@@ -133,18 +141,17 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    # هنا سيظهر الباركود فوراً بمجرد حصول الوميض الأخضر في الكاميرا
-    barcode_input = st.text_input("رمز الباركود الحالي المنتج:", value=st.session_state.scanned_barcode_val, placeholder="انتظار الوميض الأخضر من الكاميرا...")
+    # استقبال القراءة اليدوية أو القادمة من زر التأكيد بنجاح وثبات تام
+    barcode_input = st.text_input("رمز الباركود المثبت حالياً:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز هنا بعد الضغط على زر تأكيد الأخضر...")
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
-        # تنظيف المدخلات والمقارنة الصارمة
         matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
         if not matched_barcode.empty:
             selected_product = matched_barcode.iloc[0]
-            st.success("✅ ممتاز! تم التعرف على المنتج وعرضه في الأسفل تلقائياً!")
+            st.success("✅ ممتاز! تم سحب بيانات الصنف بنجاح!")
         else:
-            st.warning(f"⚠️ الرمز ({barcode_input}) مقروء صح، لكنه غير مسجل بهذا الشكل في جدول الأصناف (الإكسل)!")
+            st.warning(f"⚠️ الرمز ({barcode_input}) غير مسجل في جدول الإكسل المرفق!")
 
 if selected_product is not None:
     name_col = df.columns[0]
@@ -173,7 +180,7 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        st.session_state.scanned_barcode_val = "" # تصفير مؤقت للمنتج القادم
+        st.session_state.scanned_barcode_val = "" # تصفير القراءة بعد الإضافة الناجحة
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
