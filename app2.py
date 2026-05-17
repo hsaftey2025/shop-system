@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import streamlit.components.v1 as components
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -12,10 +13,12 @@ st.markdown("""
     div[data-testid="stDataFrame"] { width: 100%; direction: rtl; }
     .stTextInput>div>div>input, .stNumberInput>div>div>input { text-align: right; direction: rtl; }
     div[data-testid="stNotification"] { direction: rtl; }
+    #interactive.viewport { width: 100%; height: auto; overflow: hidden; }
+    #interactive.viewport canvas.drawingBuffer { display: none; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. جلب البيانات من رابط CSV المباشر والآمن من السحابة
+# 2. جلب البيانات من رابط CSV المباشر والآمن
 @st.cache_data(ttl=60)
 def load_data_alternative():
     sheet_id = "11J5eCOYQhDfrJ6rqv0Z35M4gs6_wM7dBWJjCmehkntc"
@@ -35,7 +38,10 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة سلة المبيعات ورقم الفاتورة
+# إدارة الذاكرة المؤقتة للباركود الممسوح
+if 'scanned_barcode_val' not in st.session_state:
+    st.session_state.scanned_barcode_val = ""
+
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 
@@ -52,8 +58,57 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف السريع
+# 4. قسم إضافة الأصناف (البث الحي التلقائي الفوري عبر Quagga)
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
+
+enable_camera = st.checkbox("📷 تشغيل كاميرا البث الحي (مسح تلقائي وفوري)")
+
+if enable_camera:
+    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا مباشرة نحو خطوط الباركود بشكل مستقيم وثابت:</p>", unsafe_allow_html=True)
+    
+    # مكون جافاسكربت متطور بمكتبة Quagga لقط الباركودات التجارية فوراً دون الحاجة لالتقاط صورة
+    quagga_html = """
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <div id="scanner-container" style="width:100%; border-radius:12px; overflow:hidden; border:3px solid #00c853; background:#000;">
+        <div id="interactive" class="viewport" style="width:100%;"></div>
+    </div>
+    <script>
+        Quagga.init({
+            inputStream : {
+                name : "Live",
+                type : "LiveStream",
+                target: document.querySelector('#interactive'),
+                constraints: {
+                    width: 640,
+                    height: 480,
+                    facingMode: "environment" // إجبار المتصفح على فتح الكاميرا الخلفية للجوال
+                },
+            },
+            decoder : {
+                readers : ["ean_reader", "code_128_reader", "ean_8_reader", "code_39_reader"] // دعم جميع الباركودات الطولية للمنتجات
+            }
+        }, function(err) {
+            if (err) {
+                console.log(err);
+                return
+            }
+            Quagga.start();
+        });
+
+        // عند نجاح القراءة التلقائية، يتم إرسال الكود فوراً وبدون أي أخطاء شاشة
+        Quagga.onDetected(function(result) {
+            var code = result.codeResult.code;
+            if(code) {
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: String(code)}, '*');
+                Quagga.stop(); // إيقاف مؤقت لمنع التكرار المزعج
+            }
+        });
+    </script>
+    """
+    camera_result = components.html(quagga_html, height=320, scrolling=False)
+    
+    if camera_result and type(camera_result) == str and camera_result.strip() != "":
+        st.session_state.scanned_barcode_val = camera_result.strip()
 
 search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود"])
 selected_product = None
@@ -71,8 +126,8 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    # هذا الحقل مجهز لاستقبال أي قراءة باركود فوراً سواء يدوياً، بالليزر، أو بكاميرا لوحة المفاتيح
-    barcode_input = st.text_input("اضغط هنا وامسح الباركود:", value="", placeholder="امسح الباركود ليتعرف عليه النظام تلقائياً...")
+    # استقبال الرمز الممسوح حياً تلقائياً، أو إدخاله يدوياً/بالليزر الخارجي
+    barcode_input = st.text_input("رمز الباركود الحالي اللحظي:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز المقروء هنا تلقائياً بمجرد توجيه الكاميرا...")
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
@@ -110,12 +165,13 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
+        st.session_state.scanned_barcode_val = "" # تصفير القراءة فوراً للاستعداد للمنتج التالي
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
 st.write("---")
 
-# 5. عرض الفاتورة وإدارتها
+# 5. عرض الفاتورة
 st.subheader(f"📋 تفاصيل الفاتورة الحالية رقم #{st.session_state.invoice_num}")
 
 if st.session_state.cart:
@@ -127,7 +183,8 @@ if st.session_state.cart:
     
     if st.button("🔄 تفريغ الفاتورة وتصفير السلة للبدء من جديد"):
         st.session_state.cart = []
+        st.session_state.scanned_barcode_val = ""
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
-    st.info("الفاتورة فارغة حالياً. ابحث باسم الصنف أو امسح الباركود لبناء الفاتورة.")
+    st.info("الفاتورة فارغة حالياً. ابحث باسم الصنف أو وجه الكاميرا نحو الباركود للبث الحي لبناء الفاتورة.")
