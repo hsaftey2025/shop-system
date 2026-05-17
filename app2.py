@@ -4,6 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from datetime import datetime
 import streamlit.components.v1 as components
+import json
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -19,12 +20,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. الاتصال بجوجل شيت وتجهيز الصفحات تلقائياً
+# 2. الاتصال بجوجل شيت وتجهيز الصفحات تلقائياً عبر السحابة الآمنة
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    # قراءة ملف الاعتماديات من المجلد الحالي
-    creds = ServiceAccountCredentials.from_json_keyfile_name("shop-management-system-496511-c4c26a6e78c0.json", scope)
+    
+    # تعديل جوهري: قراءة الاعتماديات من الـ Secrets المشفرة داخل السيرفر تلقائياً لمنع تلف الـ JWT
+    creds_dict = json.loads(st.secrets["gspread_creds"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    
     client = gspread.authorize(creds)
     return client
 
