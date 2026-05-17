@@ -163,8 +163,8 @@ if st.session_state.cart:
         else:
             today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             
-            # الرابط السحري الفعلي والجديد بعد النشر الصحيح للإصدار المطور
-            macro_url = "https://script.google.com/macros/s/AKfycbxf9wFSeVdJsmIUpe1QOEIXVyhDA1dkhR2JDoiiD83XKi5P4GXzEn_24dgH0VpUSEmS/exec"
+            # الرابط السحري الجديد والنهائي النشط للرفع المباشر
+            macro_url = "https://script.google.com/macros/s/AKfycby4pCg4KG96qpMpmqDsR3L1UkqQg3P9wg8T6yB1LFsqLTNdE7EMAdge_6miy8CUUhEF/exec"
             
             invoice_data = {
                 "customer": customer_name,
