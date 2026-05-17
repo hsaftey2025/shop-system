@@ -163,8 +163,8 @@ if st.session_state.cart:
         else:
             today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             
-            # الرابط السحري الخاص بك المربوط بحسابك مباشرة
-            macro_url = "https://script.google.com/macros/s/AKfycbx9R1Rcg1Gj2CZG9vRIdd02kF4iUqGcVCOPVHvFcmzxby-CHtSlhVZnketN3L9KhgxY8Q/exec"
+            # الرابط السحري الجديد الخاص بمعرض أبو شمط للحفظ التلقائي
+            macro_url = "https://script.google.com/macros/s/AKfycbzSMtA9xhZ1V3cNqsXN_M4nbWBwdfGNxZsawdwWPsPeegu7iS5dyNPLVndICCwvv7be/exec"
             
             invoice_data = {
                 "customer": customer_name,
@@ -175,9 +175,9 @@ if st.session_state.cart:
             }
             
             try:
-                # إرسال الفاتورة لإنشاء ملف الإكسل داخل الـ Drive
+                # إرسال البيانات فوراً لإنشاء ملف الإكسل المستقل في حساب Google Drive الجديد
                 response = requests.post(macro_url, json=invoice_data, timeout=8)
-                st.success(f"🎉 تم إنشاء ملف إكسل للزبون ({customer_name}) وحفظه في Google Drive بنجاح!")
+                st.success(f"🎉 تم إنشاء ملف إكسل للزبون ({customer_name}) وحفظه في Google Drive الجديد بنجاح!")
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء الاتصال بـ Google Drive: {e}")
             
