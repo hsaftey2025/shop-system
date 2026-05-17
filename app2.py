@@ -35,12 +35,16 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة الذاكرة المؤقتة لمنع التصفير
+# إدارة الذاكرة المؤقتة لمنع التصفير العشوائي وتسهيل التصفير الذكي
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 
 if 'invoice_num' not in st.session_state:
     st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
+
+# مفتاح ديناميكي للتحكم في إعادة تصفير حقل إدخال الباركود تلقائياً
+if 'barcode_key_counter' not in st.session_state:
+    st.session_state.barcode_key_counter = 0
 
 # 3. الواجهة الرئيسية
 st.title("⚡ نظام الفواتير الموحدة السريع")
@@ -55,14 +59,19 @@ st.write("---")
 # 4. قسم إضافة الأصناف المستقر والسريع جداً
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-search_type = st.tabs(["🏷️ المسح بالباركد الفوري", "🔍 البحث باسم الصنف"])
+search_type = st.tabs(["🏷️ المسح بالباركود الفوري", "🔍 البحث باسم الصنف"])
 selected_product = None
 
 with search_type[0]:
-    st.markdown("<p style='text-align:right; color:#00c853; font-weight:bold;'>💡 اضغط داخل المستطيل أدناه ثم استخدم كاميرا الكيبورد لمسح سريع وصاعق للباركود:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right; color:#00c853; font-weight:bold;'>💡 اضغط داخل المستطيل أدناه وامسح؛ سيتم التعرف على المنتج وتصفير الخانة تلقائياً بعد الإضافة:</p>", unsafe_allow_html=True)
     
-    # مستطيل نظيف ومستقر يستقبل البيانات فوراً وبدون وميض
-    barcode_input = st.text_input("اضغط هنا وامسح الباركود:", value="", placeholder="انتظار قراءة الباركود من الكاميرا...")
+    # استخدام مفتاح ديناميكي (key) متغير لإجبار النظام على مسح وتصفير الحقل تماماً عند تحديث العداد
+    barcode_input = st.text_input(
+        "اضغط هنا وامسح الباركود:", 
+        value="", 
+        placeholder="انتظار قراءة الباركود من الكاميرا...",
+        key=f"barcode_field_{st.session_state.barcode_key_counter}"
+    )
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
@@ -110,6 +119,10 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
+        
+        # التكنيك السحري: تغيير العداد يجبر مستطيل إدخال الباركود على التصفير تماماً والاستعداد للمنتج التالي
+        st.session_state.barcode_key_counter += 1 
+        
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
@@ -127,6 +140,7 @@ if st.session_state.cart:
     
     if st.button("🔄 تفريغ الفاتورة وتصفير السلة للبدء من جديد"):
         st.session_state.cart = []
+        st.session_state.barcode_key_counter += 1 # تصفير حقل الباركود أيضاً عند تصفير الفاتورة
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
