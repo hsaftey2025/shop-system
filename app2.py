@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import streamlit.components.v1 as components
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -36,10 +35,7 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة الذاكرة المؤقتة لمنع التصفير التلقائي عند التحديث
-if 'scanned_barcode_val' not in st.session_state:
-    st.session_state.scanned_barcode_val = ""
-
+# إدارة الذاكرة المؤقتة لمنع التصفير
 if 'cart' not in st.session_state:
     st.session_state.cart = []
 
@@ -56,70 +52,26 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف
+# 4. قسم إضافة الأصناف المستقر والسريع جداً
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-# حاقن الباركود المباشر والمستقر داخل الصفحة لمنع اختفاء الأزرار نهائياً
-st.markdown("<p style='text-align:right;color:gray;'>قم بتوجيه الكاميرا نحو الباركود، وسيتم عرضه فوراً بشكل مستقر وثابت داخل المربع:</p>", unsafe_allow_html=True)
-
-# المكون الهجين الثابت 100% والذي لا يتأثر بتحديثات بايثون الخلفية
-scanner_html = """
-<script src="https://unpkg.com/html5-qrcode"></script>
-<div style="background-color: #f8f9fa; border: 2px dashed #00c853; padding: 10px; border-radius: 12px; text-align: center;">
-    <div id="reader" style="width:100%; max-width:450px; margin:0 auto; border-radius: 8px; overflow:hidden;"></div>
-    <div style="margin-top: 15px;">
-        <p style="font-size:14px; margin-bottom:5px; color:#555; direction:rtl;">الباركود الذي تم رصده حالياً:</p>
-        <input type="text" id="code-output" style="width:90%; height:45px; text-align:center; font-size:20px; font-weight:bold; color:#00c853; border:2px solid #00c853; border-radius:8px; background:#fff;" readonly placeholder="انتظار توجيه الكاميرا...">
-    </div>
-</div>
-
-<script>
-    function onScanSuccess(decodedText, decodedResult) {
-        if (decodedText) {
-            // تثبيت النص المقروء داخل حقل الإدخال فوراً وبشكل دائم حتى لو حدث وميض
-            document.getElementById('code-output').value = decodedText;
-            
-            // إرسال الكود إلى حقول نظام بايثون بالأسفل بكل أمان
-            window.parent.postMessage({
-                type: 'streamlit:setComponentValue', 
-                value: String(decodedText).trim()
-            }, '*');
-        }
-    }
-
-    let html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader", 
-        { 
-            fps: 15, 
-            qrbox: { width: 320, height: 150 },
-            rememberLastUsedCamera: true
-        }
-    );
-    html5QrcodeScanner.render(onScanSuccess);
-</script>
-"""
-
-# عرض المطار البرمي الثابت
-camera_result = components.html(scanner_html, height=430, scrolling=False)
-
-if camera_result and type(camera_result) == str and camera_result.strip() != "":
-    st.session_state.scanned_barcode_val = camera_result.strip()
-
-search_type = st.tabs(["🏷️ المسح بالباركود الحالي", "🔍 البحث باسم الصنف"])
+search_type = st.tabs(["🏷️ المسح بالباركد الفوري", "🔍 البحث باسم الصنف"])
 selected_product = None
 
 with search_type[0]:
-    # استقبال القراءة الممسوحة تلقائياً وبثبات كامل
-    barcode_input = st.text_input("رمز المنتج الممسوح:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز تلقائياً بمجرد رصده في المربع الأعلى...")
+    st.markdown("<p style='text-align:right; color:#00c853; font-weight:bold;'>💡 اضغط داخل المستطيل أدناه ثم استخدم كاميرا الكيبورد لمسح سريع وصاعق للباركود:</p>", unsafe_allow_html=True)
+    
+    # مستطيل نظيف ومستقر يستقبل البيانات فوراً وبدون وميض
+    barcode_input = st.text_input("اضغط هنا وامسح الباركود:", value="", placeholder="انتظار قراءة الباركود من الكاميرا...")
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
         matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
         if not matched_barcode.empty:
             selected_product = matched_barcode.iloc[0]
-            st.success("✅ ممتاز! تم سحب بيانات الصنف بنجاح!")
+            st.success("✅ ممتاز! تم العثور على المنتج بنجاح!")
         else:
-            st.warning(f"⚠️ الرمز ({barcode_input}) مقروء صح، ولكنه غير مسجل في جدول الإكسل!")
+            st.warning(f"⚠️ الباركود ({barcode_input}) غير مسجل في جدول الإكسل!")
 
 with search_type[1]:
     search_query = st.text_input("اكتب اسم المنتج أو جزء منه للبحث:", placeholder="مثال: يو شبكة، انتركم...")
@@ -130,8 +82,6 @@ with search_type[1]:
             product_list = matched_df[name_col].tolist()
             selected_name = st.selectbox("اختر الصنف المطلوب من القائمة:", product_list)
             selected_product = matched_df[matched_df[name_col] == selected_name].iloc[0]
-        else:
-            st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 if selected_product is not None:
     name_col = df.columns[0]
@@ -160,7 +110,6 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        st.session_state.scanned_barcode_val = "" # إعادة التصفير للاستعداد للمنتج القادم
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
@@ -178,8 +127,7 @@ if st.session_state.cart:
     
     if st.button("🔄 تفريغ الفاتورة وتصفير السلة للبدء من جديد"):
         st.session_state.cart = []
-        st.session_state.scanned_barcode_val = ""
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
-    st.info("الفاتورة فارغة حالياً. وجه الكاميرا نحو الباركود أو ابحث بالاسم لبناء الفاتورة الحالية.")
+    st.info("الفاتورة فارغة حالياً. اضغط على المستطيل الأعلى وامسح الباركود لبدء البيع.")
