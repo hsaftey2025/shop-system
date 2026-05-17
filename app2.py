@@ -59,76 +59,69 @@ st.write("---")
 # 4. قسم إضافة الأصناف
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
-enable_camera = st.checkbox("📷 تشغيل الكاميرا الذكية المحدثة")
+# حاقن الباركود المباشر والمستقر داخل الصفحة لمنع اختفاء الأزرار نهائياً
+st.markdown("<p style='text-align:right;color:gray;'>قم بتوجيه الكاميرا نحو الباركود، وسيتم عرضه فوراً بشكل مستقر وثابت داخل المربع:</p>", unsafe_allow_html=True)
 
-if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا نحو الباركود، وعندما يتم رصده بنجاح سيثبت الرمز في المستطيل فوراً:</p>", unsafe_allow_html=True)
-    
-    # كود جافاسكربت هجين يقوم بحفظ القراءة داخل حقل إدخال HTML مستقل يمنع التصفير العشوائي للمتصفح
-    scanner_html = """
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:3px solid #00c853; background:#000;"></div>
-    <div style="margin-top: 10px; text-align: center;">
-        <input type="text" id="result-holder" readonly style="width:70%; height:40px; text-align:center; font-size:18px; font-weight:bold; border-radius:8px; border:2px solid #ccc;" placeholder="الرمز المقروء سيثبت هنا...">
-        <button onclick="sendToStreamlit()" style="width:25%; height:42px; background-color:#00c853; color:white; font-weight:bold; border:none; border-radius:8px; cursor:pointer;">تأكيد ✅</button>
+# المكون الهجين الثابت 100% والذي لا يتأثر بتحديثات بايثون الخلفية
+scanner_html = """
+<script src="https://unpkg.com/html5-qrcode"></script>
+<div style="background-color: #f8f9fa; border: 2px dashed #00c853; padding: 10px; border-radius: 12px; text-align: center;">
+    <div id="reader" style="width:100%; max-width:450px; margin:0 auto; border-radius: 8px; overflow:hidden;"></div>
+    <div style="margin-top: 15px;">
+        <p style="font-size:14px; margin-bottom:5px; color:#555; direction:rtl;">الباركود الذي تم رصده حالياً:</p>
+        <input type="text" id="code-output" style="width:90%; height:45px; text-align:center; font-size:20px; font-weight:bold; color:#00c853; border:2px solid #00c853; border-radius:8px; background:#fff;" readonly placeholder="انتظار توجيه الكاميرا...">
     </div>
-    <script>
-        function onScanSuccess(decodedText, decodedResult) {
-            if(decodedText) {
-                document.getElementById('result-holder').value = decodedText;
-                // إضاءة المستطيل باللون الأخضر للتأكيد البصري للمستخدم
-                document.getElementById('result-holder').style.borderColor = "#00c853";
-                document.getElementById('result-holder').style.backgroundColor = "#e8f5e9";
-            }
+</div>
+
+<script>
+    function onScanSuccess(decodedText, decodedResult) {
+        if (decodedText) {
+            // تثبيت النص المقروء داخل حقل الإدخال فوراً وبشكل دائم حتى لو حدث وميض
+            document.getElementById('code-output').value = decodedText;
+            
+            // إرسال الكود إلى حقول نظام بايثون بالأسفل بكل أمان
+            window.parent.postMessage({
+                type: 'streamlit:setComponentValue', 
+                value: String(decodedText).trim()
+            }, '*');
         }
+    }
 
-        function sendToStreamlit() {
-            var finalCode = document.getElementById('result-holder').value;
-            if(finalCode) {
-                window.parent.postMessage({
-                    type: 'streamlit:setComponentValue', 
-                    value: String(finalCode).trim()
-                }, '*');
-            } else {
-                alert("يرجى مسح منتج أولاً قبل الضغط على تأكيد!");
-            }
+    let html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader", 
+        { 
+            fps: 15, 
+            qrbox: { width: 320, height: 150 },
+            rememberLastUsedCamera: true
         }
-        
-        const formatsToSupport = [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.QR_CODE
-        ];
+    );
+    html5QrcodeScanner.render(onScanSuccess);
+</script>
+"""
 
-        let html5QrcodeScanner = new Html5QrcodeScanner(
-            "interactive-reader", 
-            { 
-                fps: 20, 
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    return { width: Math.floor(viewfinderWidth * 0.9), height: Math.floor(viewfinderHeight * 0.45) };
-                },
-                formatsToSupport: formatsToSupport,
-                rememberLastUsedCamera: true,
-                aspectRatio: 1.777778
-            }
-        );
-        html5QrcodeScanner.render(onScanSuccess);
-    </script>
-    """
-    # عرض المكون مع مساحة كافية للزر الجديد المضمون لحل مشكلة قفل وجفل الصفحة
-    camera_result = components.html(scanner_html, height=390, scrolling=False)
-    
-    if camera_result and type(camera_result) == str and camera_result.strip() != "":
-        st.session_state.scanned_barcode_val = camera_result.strip()
+# عرض المطار البرمي الثابت
+camera_result = components.html(scanner_html, height=430, scrolling=False)
 
-search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود الحالي"])
+if camera_result and type(camera_result) == str and camera_result.strip() != "":
+    st.session_state.scanned_barcode_val = camera_result.strip()
+
+search_type = st.tabs(["🏷️ المسح بالباركود الحالي", "🔍 البحث باسم الصنف"])
 selected_product = None
 
 with search_type[0]:
+    # استقبال القراءة الممسوحة تلقائياً وبثبات كامل
+    barcode_input = st.text_input("رمز المنتج الممسوح:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز تلقائياً بمجرد رصده في المربع الأعلى...")
+    
+    if barcode_input and not df.empty:
+        barcode_col = df.columns[1]
+        matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
+        if not matched_barcode.empty:
+            selected_product = matched_barcode.iloc[0]
+            st.success("✅ ممتاز! تم سحب بيانات الصنف بنجاح!")
+        else:
+            st.warning(f"⚠️ الرمز ({barcode_input}) مقروء صح، ولكنه غير مسجل في جدول الإكسل!")
+
+with search_type[1]:
     search_query = st.text_input("اكتب اسم المنتج أو جزء منه للبحث:", placeholder="مثال: يو شبكة، انتركم...")
     if search_query and not df.empty:
         name_col = df.columns[0]
@@ -139,19 +132,6 @@ with search_type[0]:
             selected_product = matched_df[matched_df[name_col] == selected_name].iloc[0]
         else:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
-
-with search_type[1]:
-    # استقبال القراءة اليدوية أو القادمة من زر التأكيد بنجاح وثبات تام
-    barcode_input = st.text_input("رمز الباركود المثبت حالياً:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز هنا بعد الضغط على زر تأكيد الأخضر...")
-    
-    if barcode_input and not df.empty:
-        barcode_col = df.columns[1]
-        matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
-        if not matched_barcode.empty:
-            selected_product = matched_barcode.iloc[0]
-            st.success("✅ ممتاز! تم سحب بيانات الصنف بنجاح!")
-        else:
-            st.warning(f"⚠️ الرمز ({barcode_input}) غير مسجل في جدول الإكسل المرفق!")
 
 if selected_product is not None:
     name_col = df.columns[0]
@@ -180,7 +160,7 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        st.session_state.scanned_barcode_val = "" # تصفير القراءة بعد الإضافة الناجحة
+        st.session_state.scanned_barcode_val = "" # إعادة التصفير للاستعداد للمنتج القادم
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
@@ -202,4 +182,4 @@ if st.session_state.cart:
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
-    st.info("الفاتورة فارغة حالياً. ابحث باسم الصنف أو وجه الكاميرا نحو الباركود لبناء الفاتورة.")
+    st.info("الفاتورة فارغة حالياً. وجه الكاميرا نحو الباركود أو ابحث بالاسم لبناء الفاتورة الحالية.")
