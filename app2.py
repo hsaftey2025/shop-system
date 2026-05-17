@@ -36,7 +36,7 @@ else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
 
-# إدارة الذاكرة المؤقتة للباركود
+# إدارة الذاكرة المؤقتة للباركود المقروء
 if 'scanned_barcode_val' not in st.session_state:
     st.session_state.scanned_barcode_val = ""
 
@@ -56,53 +56,51 @@ customer_type = st.radio("نوع المعاملة:", ["نقدي (كاش)", "ذم
 
 st.write("---")
 
-# 4. قسم إضافة الأصناف (كاميرا البث الحي التلقائي المحمية)
+# 4. قسم إضافة الأصناف (كاميرا البث الحي المستقرة والنقية)
 st.subheader("📦 إضافة الأصناف إلى الفاتورة")
 
 enable_camera = st.checkbox("📷 تشغيل الكاميرا الحية لمسح الباركود تلقائياً")
 
 if enable_camera:
-    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا الخلفية بدقة وبشكل أفقي نحو ملصق الباركود التجاري:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right;color:gray;'>وجه الكاميرا بشكل أفقي وثابت نحو الباركود، وبمجرد الوميض الأخضر سيتم جلبه تلقائياً:</p>", unsafe_allow_html=True)
     
-    # كود جافاسكربت هجين ومستقر مخصص لمنع تكرار البيانات والشاشة السوداء
+    # كود جافاسكربت يقوم بالتنظيف اللحظي وإرسال القراءة الصافية بدون تعليق
     scanner_html = """
     <script src="https://unpkg.com/html5-qrcode"></script>
     <div id="interactive-reader" style="width:100%; border-radius:12px; overflow:hidden; border:3px solid #00c853; background:#000;"></div>
     <script>
-        let lastScannedCode = "";
-        let scanCount = 0;
+        let isScanningAllowed = true;
 
         function onScanSuccess(decodedText, decodedResult) {
-            // التحقق من أن الكود المقروء جديد لتجنب تعليق المتصفح والشاشة السوداء
-            if (decodedText !== lastScannedCode) {
-                lastScannedCode = decodedText;
-                scanCount++;
+            if (isScanningAllowed && decodedText) {
+                isScanningAllowed = false; // إيقاف مؤقت لحماية السيرفر من التكرار المزعج
                 
-                // إرسال الكود بأمان تام إلى تطبيق بايثون
+                // إرسال الكود الصافي مباشرة إلى بايثون
                 window.parent.postMessage({
                     type: 'streamlit:setComponentValue', 
-                    value: String(decodedText) + "_" + scanCount
+                    value: String(decodedText).trim()
                 }, '*');
+                
+                // إعادة السماح بالفحص بعد ثانيتين لالتقاط منتج آخر
+                setTimeout(() => { isScanningAllowed = true; }, 2000);
             }
         }
         
-        // دعم شامل لكل أنواع الباركودات في المحلات (EAN-13, CODE-128, QR)
         const formatsToSupport = [
-            Html5QrcodeSupportedFormats.QR_CODE,
             Html5QrcodeSupportedFormats.EAN_13,
             Html5QrcodeSupportedFormats.EAN_8,
             Html5QrcodeSupportedFormats.CODE_128,
             Html5QrcodeSupportedFormats.CODE_39,
             Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.QR_CODE
         ];
 
         let html5QrcodeScanner = new Html5QrcodeScanner(
             "interactive-reader", 
             { 
-                fps: 20, 
+                fps: 25, 
                 qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    // صندوق فحص مستطيل عريض جداً مثالي للقطع التجارية والمنتجات
                     return { width: Math.floor(viewfinderWidth * 0.9), height: Math.floor(viewfinderHeight * 0.45) };
                 },
                 formatsToSupport: formatsToSupport,
@@ -115,12 +113,11 @@ if enable_camera:
     """
     camera_result = components.html(scanner_html, height=320, scrolling=False)
     
-    # معالجة النص القادم وفصل رقم العداد الأمني لضمان التحديث المستمر للحقول
-    if camera_result and type(camera_result) == str and "_" in camera_result:
-        raw_code = camera_result.split("_")[0]
-        st.session_state.scanned_barcode_val = raw_code.strip()
+    # التقاط النتيجة وحفظها فوراً في الذاكرة لتعبئة المستطيل تلقائياً
+    if camera_result and type(camera_result) == str and camera_result.strip() != "":
+        st.session_state.scanned_barcode_val = camera_result.strip()
 
-search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود الحالي"])
+search_type = st.tabs(["🔍 البحث باسم الصنف", "🏷️ المسح بالباركود الممسوح"])
 selected_product = None
 
 with search_type[0]:
@@ -136,17 +133,18 @@ with search_type[0]:
             st.warning("⚠️ لم يتم العثور على أي صنف مطابِق!")
 
 with search_type[1]:
-    # استقبال القراءة الحية والآمنة هنا تلقائياً
-    barcode_input = st.text_input("رمز الباركود المقروء حالياً:", value=st.session_state.scanned_barcode_val, placeholder="سيظهر الرمز هنا تلقائياً بمجرد توجيه الكاميرا...")
+    # هنا سيظهر الباركود فوراً بمجرد حصول الوميض الأخضر في الكاميرا
+    barcode_input = st.text_input("رمز الباركود الحالي المنتج:", value=st.session_state.scanned_barcode_val, placeholder="انتظار الوميض الأخضر من الكاميرا...")
     
     if barcode_input and not df.empty:
         barcode_col = df.columns[1]
+        # تنظيف المدخلات والمقارنة الصارمة
         matched_barcode = df[df[barcode_col].astype(str).str.strip() == str(barcode_input).strip()]
         if not matched_barcode.empty:
             selected_product = matched_barcode.iloc[0]
-            st.success("✅ تم العثور على الصنف بالباركود!")
+            st.success("✅ ممتاز! تم التعرف على المنتج وعرضه في الأسفل تلقائياً!")
         else:
-            st.warning(f"⚠️ الباركود ({barcode_input}) غير مسجل في جدول الأصناف!")
+            st.warning(f"⚠️ الرمز ({barcode_input}) مقروء صح، لكنه غير مسجل بهذا الشكل في جدول الأصناف (الإكسل)!")
 
 if selected_product is not None:
     name_col = df.columns[0]
@@ -175,13 +173,13 @@ if selected_product is not None:
             "الإجمالي": custom_price * quantity
         }
         st.session_state.cart.append(item)
-        st.session_state.scanned_barcode_val = "" # تفريغ الخانة فوراً للاستعداد للمنتج التالي
+        st.session_state.scanned_barcode_val = "" # تصفير مؤقت للمنتج القادم
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
 
 st.write("---")
 
-# 5. عرض الفاتورة وإدارتها
+# 5. عرض الفاتورة
 st.subheader(f"📋 تفاصيل الفاتورة الحالية رقم #{st.session_state.invoice_num}")
 
 if st.session_state.cart:
