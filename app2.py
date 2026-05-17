@@ -1,6 +1,6 @@
 import streamlit as st
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 import pandas as pd
 from datetime import datetime
 import streamlit.components.v1 as components
@@ -19,21 +19,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. الاتصال بجوجل شيت عبر معالجة ذكية ومباشرة للـ Secrets البرمجية
+# 2. الاتصال بجوجل شيت عبر مكتبة جوجل الرسمية والحديثة المباشرة
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # جلب البيانات كقاموس بايثون نقي لتعديله برمجياً
+    # جلب الإعدادات وتحويلها لقاموس نقي ليتم تمريره مباشرة للمكتبة الرسمية
     creds_dict = dict(st.secrets["gspread_creds"])
     
-    # الحل القاطع لخطأ Padding: إصلاح الرموز المائلة المزدوجة برمجياً وتحويلها لأسطر حقيقية
-    if "private_key" in creds_dict:
-        # إزالة أي علامات اقتباس عشوائية قد تلحق بالنص، ثم تحويل العلامات لأسطر حقيقية
-        cleaned_key = creds_dict["private_key"].strip("'\"")
-        creds_dict["private_key"] = cleaned_key.replace("\\n", "\n")
-        
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    # الربط الرسمي الذكي بدون أخطاء padding أو تشفير
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client
 
