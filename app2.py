@@ -42,9 +42,9 @@ if 'cart' not in st.session_state:
 if 'invoice_num' not in st.session_state:
     st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
 
-# مفتاح ديناميكي للتحكم في إعادة تصفير حقل إدخال الباركود تلقائياً
-if 'barcode_key_counter' not in st.session_state:
-    st.session_state.barcode_key_counter = 0
+# عداد ديناميكي لتصفير وتفريغ الحقل تماماً بعد كل عملية إضافة
+if 'barcode_counter' not in st.session_state:
+    st.session_state.barcode_counter = 0
 
 # 3. الواجهة الرئيسية
 st.title("⚡ نظام الفواتير الموحدة السريع")
@@ -63,14 +63,14 @@ search_type = st.tabs(["🏷️ المسح بالباركود الفوري", "�
 selected_product = None
 
 with search_type[0]:
-    st.markdown("<p style='text-align:right; color:#00c853; font-weight:bold;'>💡 اضغط داخل المستطيل أدناه وامسح؛ سيتم التعرف على المنتج وتصفير الخانة تلقائياً بعد الإضافة:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:right; color:#00c853; font-weight:bold;'>⚡ اضغط بالأسفل وافتح كاميرا الكيبورد الجديدة:</p>", unsafe_allow_html=True)
     
-    # استخدام مفتاح ديناميكي (key) متغير لإجبار النظام على مسح وتصفير الحقل تماماً عند تحديث العداد
+    # حقل ذكي مرتبط بمفتاح متغير (Key) يجبر المتصفح على مسحه تماماً بمجرد الضغط على إضافة
     barcode_input = st.text_input(
-        "اضغط هنا وامسح الباركود:", 
+        "حقل المسح النشط:", 
         value="", 
-        placeholder="انتظار قراءة الباركود من الكاميرا...",
-        key=f"barcode_field_{st.session_state.barcode_key_counter}"
+        placeholder="اضغط هنا لفتح الكاميرا ومسح المنتج...",
+        key=f"barcode_input_field_{st.session_state.barcode_counter}"
     )
     
     if barcode_input and not df.empty:
@@ -120,8 +120,8 @@ if selected_product is not None:
         }
         st.session_state.cart.append(item)
         
-        # التكنيك السحري: تغيير العداد يجبر مستطيل إدخال الباركود على التصفير تماماً والاستعداد للمنتج التالي
-        st.session_state.barcode_key_counter += 1 
+        # تصفير الخانة وتجهيزها برمجياً فوراً للمنتج القادم
+        st.session_state.barcode_counter += 1
         
         st.toast(f"تمت إضافة {p_name} بنجاح! 🛒", icon="✅")
         st.rerun()
@@ -140,7 +140,7 @@ if st.session_state.cart:
     
     if st.button("🔄 تفريغ الفاتورة وتصفير السلة للبدء من جديد"):
         st.session_state.cart = []
-        st.session_state.barcode_key_counter += 1 # تصفير حقل الباركود أيضاً عند تصفير الفاتورة
+        st.session_state.barcode_counter += 1
         st.session_state.invoice_num = datetime.now().strftime("%d%H%M%S")
         st.rerun()
 else:
