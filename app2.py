@@ -4,7 +4,7 @@ from datetime import datetime
 import requests
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
-st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
+st.set_page_config(page_title="نظام مبيعات معرض أبو شمط", page_icon="⚡", layout="centered")
 
 st.markdown("""
     <style>
@@ -31,7 +31,7 @@ def load_data_alternative():
 df = load_data_alternative()
 
 if not df.empty:
-    st.sidebar.success("متصل بنظام باسل المطور بنجاح! ✅")
+    st.sidebar.success("متصل بنظام معرض أبو شمط بنجاح! ✅")
 else:
     st.error("خطأ: تعذر جلب البيانات. تأكد من إعدادات مشاركة الجدول.")
     st.stop()
@@ -50,7 +50,7 @@ if 'customer_counter' not in st.session_state:
     st.session_state.customer_counter = 0
 
 # 3. الواجهة الرئيسية
-st.title("⚡ نظام الفواتير الموحدة السريع")
+st.title("⚡ نظام فواتير معرض أبو شمط")
 st.write("---")
 
 st.subheader("👤 بيانات الزبون والفاتورة")
@@ -161,13 +161,10 @@ if st.session_state.cart:
         if not customer_name:
             st.error("❌ خطأ: لا يمكن حفظ الفاتورة بدون كتابة اسم الزبون أولاً!")
         else:
-            # تجهيز نص الفاتورة لإرساله إلى قوقل درايف
-            # يتم إرسال اسم الزبون، نوع المعاملة، والتاريخ لإنشاء ملف إكسل مخصص له
             today_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             
-            # رابط كود الويب (Google Apps Script) الذي سيربط البرنامج بحساب Google Drive الخاص بك مباشرة
-            # (سنقوم بإنشاء هذا الرابط في الخطوة التالية ليصبح الحفظ حقيقياً ومباشراً)
-            macro_url = "https://script.google.com/macros/s/AKfycbyb1XN_YOUR_SCRIPT_ID_HERE/exec"
+            # الرابط السحري الخاص بك المربوط بحسابك مباشرة
+            macro_url = "https://script.google.com/macros/s/AKfycbx9R1Rcg1Gj2CZG9vRIdd02kF4iUqGcVCOPVHvFcmzxby-CHtSlhVZnketN3L9KhgxY8Q/exec"
             
             invoice_data = {
                 "customer": customer_name,
@@ -178,13 +175,11 @@ if st.session_state.cart:
             }
             
             try:
-                # إرسال البيانات فوراً ليتم حفظها كملف مستقل في درايف
-                # استخدمنا timeout صغير لمنع تعليق البرنامج إذا كانت شبكة الجوال ضعيفة
-                response = requests.post(macro_url, json=invoice_data, timeout=5)
+                # إرسال الفاتورة لإنشاء ملف الإكسل داخل الـ Drive
+                response = requests.post(macro_url, json=invoice_data, timeout=8)
                 st.success(f"🎉 تم إنشاء ملف إكسل للزبون ({customer_name}) وحفظه في Google Drive بنجاح!")
             except Exception as e:
-                # في حالة عدم إعداد الرابط بعد، سيعطيك النظام تأكيداً محلياً لحين ربط الـ Macro
-                st.info(f"💾 تم محاكاة الحفظ الذكي بنجاح! (يرجى تزويدي برابط الـ Script لتفعيل الرفع المباشر للدرايف).")
+                st.error(f"❌ حدث خطأ أثناء الاتصال بـ Google Drive: {e}")
             
             # تفريغ السلة وتصفير اسم الزبون تماماً للبدء من جديد فوراً
             st.session_state.cart = []
