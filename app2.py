@@ -4,6 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 from datetime import datetime
 import streamlit.components.v1 as components
+import json
 
 # 1. إعدادات الصفحة لتناسب شاشات الجوال بالكامل
 st.set_page_config(page_title="نظام مبيعات المحل المطور", page_icon="⚡", layout="centered")
@@ -24,8 +25,9 @@ st.markdown("""
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # قراءة البيانات المنظمة من الـ Secrets تلقائياً كقاموس بايثون نظيف ومحمي
-    creds_dict = dict(st.secrets["gspread_creds"])
+    # قراءة البيانات المخزنة كسلسلة نصية موحدة في Secrets وفك تشفيرها كـ JSON مباشرة
+    creds_text = st.secrets["gspread_creds"]
+    creds_dict = json.loads(creds_text)
     
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
@@ -132,7 +134,7 @@ with search_type[1]:
             selected_product = matched_barcode.iloc[0]
             st.success("✅ تم العثور على الصنف بالباركود!")
         else:
-            st.warning("⚠️ هذا الباركود غير مسجل في جدول الأصناف!")
+            st.warning("⚠️ هذا الباركود غير مسجل in جدول الأصناف!")
 
 # ج) شاشة معالجة الصنف الحالي المختار (تعديل السعر والكمية اللامحدودة)
 if selected_product is not None:
